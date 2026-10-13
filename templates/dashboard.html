@@ -62,11 +62,7 @@
         <a class="btn btn-xs {{ 'active' if date_range.mode=='ytd' else '' }}" href="{{ url_for('dashboard', range='ytd', cur=display_currency) }}">{{ t('dashboard.ytd', 'YTD') }}</a>
         <a class="btn btn-xs {{ 'active' if date_range.mode=='all' else '' }}" href="{{ url_for('dashboard', range='all', cur=display_currency) }}">{{ t('dashboard.all_time', 'All Time') }}</a>
       </div>
-      <div class="currency-toggle">
-        {% for c in display_currencies if c == 'USD' %}
-          <a class="btn btn-xs {{ 'active' if display_currency==c else '' }}" href="{{ url_for('dashboard', range=date_range.mode, month=date_range.month_key, year=date_range.year, cur=c) }}">{{ c }}</a>
-        {% endfor %}
-      </div>
+      <div class="currency-toggle"><span class="btn btn-xs active">{{ reporting_currency }}</span></div>
     </div>
     {% if live_rate_stale %}
       <div class="muted" style="margin-top:6px;">Live FX rate unavailable right now — showing USD amounts instead until it's back.</div>
@@ -114,7 +110,7 @@
 {% endif %}
 
 <div class="card">
-  <div class="h2">{{ t('dashboard.income_vs_expenses', 'Income vs. Expenses (last 12 months, USD)') }}</div>
+  <div class="h2">{{ t('dashboard.income_vs_expenses', 'Income vs. Expenses (last 12 months, USD)')|replace('USD', reporting_currency) }}</div>
   <div class="chart-wrap" id="trend-chart"></div>
 </div>
 
@@ -176,7 +172,7 @@
   <!-- REVENUE TABLE -->
 <div class="col-12">
   <div class="card">
-    <div class="h2">{{ t('dashboard.income', 'Income') }} <span class="muted small">({{ display_currency }})</span></div>
+    <div class="h2">{{ t('dashboard.income', 'Income') }} <span class="muted small">({{ reporting_currency }})</span></div>
     <div class="table-wrap transaction-table-wrap">
       <table class="table compact-table transaction-table sortable-table {{ 'is-empty' if not revenue_rows else '' }}" data-table="revenue">
         <thead>
@@ -231,7 +227,7 @@
         {% if revenue_rows %}
         <tfoot>
           <tr class="totals-row">
-            <td colspan="4">Total ({{ display_currency }}, active only)</td>
+            <td colspan="4">Total ({{ reporting_currency }}, active only)</td>
             <td class="amount-cell bold-amount">{{ money(totals.revenue) }}</td>
             <td colspan="3"></td>
           </tr>
@@ -245,7 +241,7 @@
   <!-- EXPENSES TABLE -->
 <div class="col-12">
   <div class="card">
-    <div class="h2">{{ t('dashboard.expenses', 'Expenses') }} <span class="muted small">({{ display_currency }})</span></div>
+    <div class="h2">{{ t('dashboard.expenses', 'Expenses') }} <span class="muted small">({{ reporting_currency }})</span></div>
     <div class="table-wrap transaction-table-wrap">
       <table class="table compact-table transaction-table sortable-table {{ 'is-empty' if not expense_rows else '' }}" data-table="expenses">
         <thead>
@@ -282,7 +278,7 @@
         {% if expense_rows %}
         <tfoot>
           <tr class="totals-row">
-            <td colspan="2">Total ({{ display_currency }}, active &amp; shared only)</td>
+            <td colspan="2">Total ({{ reporting_currency }}, active &amp; shared only)</td>
             <td class="amount-cell bold-amount">{{ money(totals.shared_expenses) }}</td>
             <td colspan="3"></td>
           </tr>
@@ -297,7 +293,7 @@
   <!-- DEBTS TABLE -->
 <div class="col-12">
   <div class="card">
-    <div class="h2">Debts (Adjustments) <span class="muted small">({{ display_currency }})</span></div>
+    <div class="h2">Debts (Adjustments) <span class="muted small">({{ reporting_currency }})</span></div>
     <div class="table-wrap transaction-table-wrap">
       <table class="table compact-table transaction-table sortable-table" data-table="adjustments">
         <thead>
@@ -337,7 +333,7 @@
   <!-- PAYMENTS TABLE -->
 <div class="col-12">
   <div class="card">
-    <div class="h2">Payments <span class="muted small">({{ display_currency }})</span></div>
+    <div class="h2">Payments <span class="muted small">({{ reporting_currency }})</span></div>
     <div class="table-wrap transaction-table-wrap">
       <table class="table compact-table transaction-table sortable-table" data-table="payments">
         <thead>

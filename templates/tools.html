@@ -7,6 +7,15 @@
 <section class="card tools-panel">
   <div class="h1">{{ t('tools.title', 'Settings & tools') }}</div>
   <p class="muted">{{ t('tools.simple_intro', 'Business reports, partners, backups, and activity history.') }}</p>
+  <form method="post" style="max-width:360px;margin-top:20px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="muted">Native workspace currency</label>
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <select name="reporting_currency"><option value="USD" {{ 'selected' if reporting_currency == 'USD' else '' }}>USD</option><option value="TOMAN" {{ 'selected' if reporting_currency == 'TOMAN' else '' }}>Toman</option></select>
+      <button class="btn" type="submit">Save</button>
+    </div>
+    <div class="field-help">Toman is stored as the native unit and is not converted to USD.</div>
+  </form>
   <div class="tools-actions">
     <a class="btn primary" href="{{ url_for('partner_settings') }}">{{ t('tools.manage_partners', 'Manage partners') }}</a>
     <a class="btn" href="{{ url_for('exports_page') }}">{{ t('tools.reports', 'Reports') }}</a>

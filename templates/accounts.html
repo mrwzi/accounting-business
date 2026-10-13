@@ -24,7 +24,7 @@
   <form method="post" class="form-grid" style="margin-top:12px;max-width:640px;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add"><input type="hidden" name="account_type" value="wallet"><input type="hidden" name="starting_balance_date" value="{{ today }}">
     <div class="field"><label class="muted">Wallet name</label><input name="name" placeholder="Main bank" required></div>
-    <div class="field"><label class="muted">Amount in it now (USD)</label><input name="starting_balance" type="number" step="0.01" value="0" required></div>
+    <div class="field"><label class="muted">Amount in it now ({{ reporting_currency }})</label><input name="starting_balance" type="number" step="0.01" value="0" required></div>
     <div class="field field-full"><label class="muted">Optional note</label><input name="note" placeholder="Only if it helps you"></div>
     <div class="field field-full"><button class="btn primary" type="submit">Add wallet</button></div>
   </form>

@@ -46,7 +46,8 @@
       <div class="field">
         <label class="muted">Currency</label>
         <select name="currency" id="adjustment_currency">
-          <option value="USD" {{ 'selected' if not edit_row or edit_row.currency=='USD' else '' }}>USD</option>
+          <option value="USD" {{ 'selected' if (edit_row and edit_row.currency=='USD') or (not edit_row and reporting_currency=='USD') else '' }}>USD</option>
+          <option value="TOMAN" {{ 'selected' if (edit_row and edit_row.currency=='TOMAN') or (not edit_row and reporting_currency=='TOMAN') else '' }}>Toman</option>
           {% if edit_row and edit_row.currency=='CAD' %}<option value="CAD" selected>CAD</option>{% endif %}
         </select>
       </div>
@@ -83,7 +84,7 @@
     if (!currencyEl || !fxEl) return;
 
     const c = currencyEl.value;
-    if (c === "USD") {
+    if (c === "USD" || c === "TOMAN") {
       fxEl.value = "1.0";
       fxEl.readOnly = true;
       return;

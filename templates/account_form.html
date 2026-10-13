@@ -43,7 +43,7 @@
       </div>
 
       <div class="field">
-        <label class="muted">Balance (USD)</label>
+        <label class="muted">Balance ({{ reporting_currency }})</label>
         <input name="starting_balance" type="number" step="0.01" value="{{ '%.2f'|format(account.starting_balance_usd) }}">
         <div class="field-help">What you'd count if you checked it as of the date below.</div>
       </div>

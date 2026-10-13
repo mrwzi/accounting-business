@@ -40,7 +40,8 @@
     <div class="field">
       <label class="muted">Currency</label>
       <select name="currency" id="recurring_currency">
-        <option value="USD">USD</option>
+        <option value="USD" {{ 'selected' if reporting_currency == 'USD' else '' }}>USD</option>
+        <option value="TOMAN" {{ 'selected' if reporting_currency == 'TOMAN' else '' }}>Toman</option>
       </select>
     </div>
 
@@ -173,7 +174,7 @@
     const fxEl = document.getElementById("recurring_fx_to_usd");
     if (!currencyEl || !fxEl) return;
     const c = currencyEl.value;
-    if (c === "USD") {
+    if (c === "USD" || c === "TOMAN") {
       fxEl.value = "1.0";
       fxEl.readOnly = true;
       return;

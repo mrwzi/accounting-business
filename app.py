@@ -115,7 +115,7 @@ def _configure_core_options():
 
     """Expose new methods/templates to every recovered-core form and filter."""
     _core.PAYMENT_METHODS = set(PAYMENT_METHODS)
-    _core.SUPPORTED_FX_CURRENCIES = {"USD", "CAD"}
+    _core.SUPPORTED_FX_CURRENCIES = {"USD", "CAD", "TOMAN"}
     _core.REVENUE_TEMPLATES.update({
         "stripe_sale": {"label": "Stripe Sale", "category": "Stripe Sale"},
         "paypal_sale": {"label": "PayPal Sale", "category": "PayPal Sale"},
@@ -286,6 +286,9 @@ def _init_business_registry():
                 FOREIGN KEY(user_id) REFERENCES users(id)
             );
         """)
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(businesses)").fetchall()}
+        if "native_currency" not in columns:
+            conn.execute("ALTER TABLE businesses ADD COLUMN native_currency TEXT")
         legacy = conn.execute("SELECT id FROM businesses WHERE database_path = '' LIMIT 1").fetchone()
         if not legacy:
             cur = conn.execute("INSERT INTO businesses (name, database_path, reporting_currency, active, created_at) VALUES ('Existing business', '', 'USD', 1, datetime('now'))")
@@ -335,6 +338,27 @@ def _businesses_for_user(username):
         return [dict(row) for row in rows]
     finally:
         conn.close()
+
+
+def _effective_currency(business=None):
+    business = business or getattr(g, "business", {})
+    return (business.get("native_currency") or business.get("reporting_currency") or "USD").upper()
+
+
+def _set_business_native_currency(currency):
+    currency = (currency or "").upper()
+    if currency not in {"USD", "TOMAN"}:
+        raise ValueError("Unsupported native currency")
+    conn = _master_db()
+    try:
+        conn.execute(
+            "UPDATE businesses SET native_currency = ? WHERE id = ?",
+            (currency, int(g.business["id"])),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    g.business["native_currency"] = currency
 
 
 def _ensure_owner_membership(username):
@@ -405,7 +429,7 @@ def setup():
         reporting_currency = (request.form.get("reporting_currency") or "USD").upper()
         error = _password_error(password, request.form.get("confirm_password", ""))
         if not username: error = "Choose a username using 3–32 letters, numbers, dots, underscores, or hyphens."
-        if reporting_currency != "USD": error = "USD is the supported default currency."
+        if reporting_currency not in {"USD", "TOMAN"}: error = "Choose USD or Toman as the default currency."
         if not error:
             conn = _auth_db()
             try:
@@ -415,7 +439,7 @@ def setup():
             _ensure_owner_membership(username)
             conn = _master_db()
             try:
-                conn.execute("UPDATE businesses SET reporting_currency = ? WHERE database_path = ''", (reporting_currency,))
+                conn.execute("UPDATE businesses SET native_currency = ? WHERE database_path = ''", (reporting_currency,))
                 conn.commit()
             finally:
                 conn.close()
@@ -466,8 +490,9 @@ def create_business(name: str, reporting_currency: str = "USD"):
     name = " ".join((name or "").split())
     if not name:
         raise ValueError("Business name is required")
-    if reporting_currency != "USD":
-        raise ValueError("USD is the supported reporting currency")
+    reporting_currency = reporting_currency.upper()
+    if reporting_currency not in {"USD", "TOMAN"}:
+        raise ValueError("Choose USD or Toman as the workspace currency")
     filename = f"{uuid4().hex}.db"
     ledger_file = BUSINESS_DB_DIR / filename
     # Keep production metadata portable while allowing tests to use a fully
@@ -481,7 +506,7 @@ def create_business(name: str, reporting_currency: str = "USD"):
         user = conn.execute("SELECT id FROM users WHERE lower(username) = lower(?)", (session.get("user", ""),)).fetchone()
         if not user:
             raise PermissionError("Unknown user")
-        cur = conn.execute("INSERT INTO businesses (name, database_path, reporting_currency, active, created_at) VALUES (?, ?, ?, 1, datetime('now'))", (name, relative_path, reporting_currency))
+        cur = conn.execute("INSERT INTO businesses (name, database_path, reporting_currency, native_currency, active, created_at) VALUES (?, ?, 'USD', ?, 1, datetime('now'))", (name, relative_path, reporting_currency))
         business_id = int(cur.lastrowid)
         conn.execute("INSERT INTO business_members (business_id, user_id, role, created_at) VALUES (?, ?, 'owner', datetime('now'))", (business_id, user['id']))
         conn.commit()
@@ -527,6 +552,9 @@ def choose_language():
     if code not in _language_packs():
         abort(400)
     session["language"] = code
+    if code == "fa" and request.form.get("use_toman") == "1" and _is_owner():
+        _set_business_native_currency("TOMAN")
+        flash("Workspace currency changed to Toman. No USD conversion was applied.", "success")
     return _core.redirect(_core.url_for("dashboard"))
 
 
@@ -536,7 +564,7 @@ def _workspace_template_context():
     business = getattr(g, "business", {})
     return {
         "available_businesses": _businesses_for_user(username) if username else [],
-        "reporting_currency": business.get("reporting_currency", "USD"),
+        "reporting_currency": _effective_currency(business),
         "language_packs": list(_language_packs().values()),
         "current_language": _current_language(),
     }
@@ -585,14 +613,9 @@ def tools():
         abort(403)
     if request.method == "POST":
         reporting_currency = (request.form.get("reporting_currency") or "").upper()
-        if reporting_currency != "USD":
+        if reporting_currency not in {"USD", "TOMAN"}:
             abort(400)
-        conn = _master_db()
-        try:
-            conn.execute("UPDATE businesses SET reporting_currency = ? WHERE id = ?", (reporting_currency, int(g.business["id"])))
-            conn.commit()
-        finally:
-            conn.close()
+        _set_business_native_currency(reporting_currency)
         flash(f"Default currency set to {reporting_currency}. Existing entries were not changed.", "success")
         return _core.redirect(_core.url_for("tools"))
     return _core.render_template("tools.html", partners=_core.config.PARTNERS)
@@ -625,6 +648,28 @@ _core.app.before_request(_select_business_ledger)
 _core.app.teardown_request(_clear_business_ledger)
 _seed_legacy_products()
 _configure_core_options()
+
+_core_compute_amount_usd_and_fx = _core.compute_amount_usd_and_fx
+_core_format_money = _core.format_money
+
+
+def _compute_native_amount(amount_original, currency, raw_fx):
+    """Treat Toman as a workspace-native unit; it is never converted to USD."""
+    if str(currency).upper() == "TOMAN":
+        return _core_compute_amount_usd_and_fx(amount_original, "USD", "1")
+    return _core_compute_amount_usd_and_fx(amount_original, currency, raw_fx)
+
+
+def _format_native_money(value):
+    if has_request_context() and _effective_currency() == "TOMAN":
+        amount = float(value or 0)
+        sign = "-" if amount < 0 else ""
+        return f"{sign}{abs(amount):,.0f} Toman"
+    return _core_format_money(value)
+
+
+_core.compute_amount_usd_and_fx = _compute_native_amount
+_core.format_money = _format_native_money
 _core.app.before_request(_refresh_live_catalog)
 
 # The compiled route passes its legacy amount field to db.insert_revenue().

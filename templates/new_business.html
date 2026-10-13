@@ -8,7 +8,7 @@
   <form method="post" class="form-grid" style="margin-top:18px;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field field-full"><label class="muted">Business name</label><input name="name" maxlength="120" required placeholder="e.g. North Shore Studio"></div>
-    <input type="hidden" name="reporting_currency" value="USD"><div class="field"><label class="muted">Reporting currency</label><div class="readonly-value">USD</div></div>
+    <div class="field"><label class="muted">Native currency</label><select name="reporting_currency"><option value="USD">USD</option><option value="TOMAN" {{ 'selected' if reporting_currency == 'TOMAN' else '' }}>Toman</option></select><div class="field-help">Amounts stay in this currency; no USD conversion is applied to Toman workspaces.</div></div>
     <div class="field field-full"><button class="btn primary" type="submit">Create workspace</button> <a class="btn" href="{{ url_for('dashboard') }}">Cancel</a></div>
   </form>
 </div>
