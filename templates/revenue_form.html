@@ -59,7 +59,7 @@
       <div class="field">
         <label class="muted">Product or service</label>
         <select name="product" id="revenue_product">
-          <option value="">No product selected</option>
+          <option value="general_income">No product selected</option>
           {% for key, product in products.items() %}
             <option value="{{ key }}" {{ 'selected' if edit_row and edit_row.product==key else '' }}>{{ product.label }}</option>
           {% endfor %}

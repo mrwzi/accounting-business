@@ -206,7 +206,14 @@ def _products_from_public_offers_html(page: str):
 
 
 def _business_products():
-    return {f"product:{row['id']}": {"label": row["name"], "category": row["name"]} for row in _core.db.fetch_products()}
+    # The recovered core requires a non-empty product key.  Keep a neutral
+    # built-in choice so a business can record general income without having
+    # to create a fake product in its private catalogue.
+    return {
+        "general_income": {"label": "General income", "category": "General income"},
+        **{f"product:{row['id']}": {"label": row["name"], "category": row["name"]}
+           for row in _core.db.fetch_products()},
+    }
 
 
 def _seed_legacy_products():
@@ -348,6 +355,12 @@ def _select_business_ledger():
         return None
     business = _business_for_user(session.get('user', ''), session.get('business_id'))
     if not business:
+        # A newly authenticated user may not have a workspace yet.  Preserve
+        # the authenticated session only long enough to create that first
+        # private workspace; every ledger, export, and accounting route still
+        # requires a selected business below.
+        if request.endpoint in {"new_business", "logout", "change_password"}:
+            return None
         session.clear()
         return None
     session['business_id'] = int(business['id'])

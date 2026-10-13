@@ -869,8 +869,8 @@ def _reverse_insert_sql(table: str):
                (entry_date, description, amount_original, currency, fx_to_usd, amount_usd,
                 amount_original_micros, fx_to_usd_ppm, amount_usd_micros,
                 collected_by, note, status, reversal_of_id, idempotency_key, created_by, created_at, updated_at,
-                template, category, payment_method, gross_sale_amount, profit_kept_amount, product)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                template, category, payment_method, gross_sale_amount, profit_kept_amount, product, product_name)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             ["entry_date", "description", "amount_original", "currency", "fx_to_usd", "amount_usd",
              "amount_original_micros", "fx_to_usd_ppm", "amount_usd_micros",
              "collected_by", "note", "status", "reversal_of_id", "idempotency_key", "created_by", "created_at", "updated_at",
