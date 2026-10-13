@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="{{ current_language.code }}" dir="{{ current_language.direction }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Accounting{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css', v=asset_version()) }}">
+  <script>window.accountingLanguageStrings = {{ current_language.strings|default({})|tojson }}; window.accountingLanguageTokens = {{ current_language.tokens|default({})|tojson }};</script>
+  <script defer src="{{ url_for('static', filename='language-pack.js', v=asset_version()) }}"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <a class="brand" href="{{ url_for('dashboard') }}" title="{{ t('brand.go_to_dashboard', 'Go to dashboard') }}" style="gap:9px;"><img src="{{ url_for('static', filename='wired-mark.png') }}" alt="" width="28" height="28" style="display:block;object-fit:contain;"> {{ t('nav.dashboard', 'Dashboard') }}</a>
+      {% if session.get("logged_in") %}
+      <div class="nav">
+        <a href="{{ url_for('dashboard') }}">{{ t('nav.overview', 'Overview') }}</a>
+        <a href="{{ url_for('accounts_page') }}">{{ t('nav.money', 'Money') }}</a>
+        {% if is_owner() %}<a href="{{ url_for('partner_settings') }}">{{ t('nav.partners_label', 'Partners') }}</a><a href="{{ url_for('products_page') }}">{{ t('nav.products', 'Products') }}</a><a href="{{ url_for('tools') }}">{{ t('nav.settings', 'Settings & tools') }}</a>{% endif %}
+        <details class="action-menu">
+          <summary class="badge" style="cursor:pointer;">{{ session.get("user") }} &#9662;</summary>
+          <div class="action-menu-body">
+            {% if available_businesses|length > 1 %}
+              <div class="muted small" style="padding:4px 0 6px;">{{ t('menu.switch_workspace', 'Switch workspace') }}</div>
+              {% for business in available_businesses %}{% if not g.business or business.id != g.business.id %}<form method="post" action="{{ url_for('select_business', business_id=business.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-xs" type="submit">{{ business.name }}</button></form>{% endif %}{% endfor %}
+            {% endif %}
+            <form method="post" action="{{ url_for('choose_language') }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="muted small">{{ t('menu.language', 'Language') }}<select name="language" onchange="this.form.submit()">{% for language in language_packs %}<option value="{{ language.code }}" {{ 'selected' if language.code == current_language.code else '' }}>{{ language.name }}</option>{% endfor %}</select></label></form>
+            <a class="btn btn-xs" href="{{ url_for('new_business') }}">{{ t('menu.new_business', 'New business') }}</a>
+            <a class="btn btn-xs" href="{{ url_for('change_password') }}">{{ t('menu.password', 'Password') }}</a>
+            <a class="btn btn-xs" href="{{ url_for('logout') }}">{{ t('menu.logout', 'Log out') }}</a>
+          </div>
+        </details>
+      </div>
+      {% endif %}
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for category, msg in messages %}<div class="flash {{ category|e }}">{{ msg }}</div>{% endfor %}{% endwith %}
+    {% block content %}{% endblock %}
+    <div class="footer">{{ t('footer.private_workspace', 'Your private business workspace') }}</div>
+  </div>
+</body>
+</html>

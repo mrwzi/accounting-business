@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% block title %}Products - My Business{% endblock %}
+{% block content %}
+<div class="card form-card">
+  <div class="h1">{% if edit_product %}Edit product or service{% else %}Products &amp; services{% endif %}</div>
+  <p class="muted">{% if edit_product %}Changing a name does not rewrite historical Income entries.{% else %}Only active products appear when you add Income. Add one only when it helps you track sales.{% endif %}</p>
+  <form method="post" class="form-grid" style="margin-top:18px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="{{ 'edit' if edit_product else 'add' }}">
+    {% if edit_product %}<input type="hidden" name="product_id" value="{{ edit_product.id }}">{% endif %}
+    <div class="field"><label class="muted">Name</label><input name="name" placeholder="e.g. Consulting session" required value="{{ edit_product.name if edit_product else '' }}"></div>
+    <div class="field"><label class="muted">Description (optional)</label><input name="description" placeholder="Short internal note" value="{{ edit_product.description if edit_product else '' }}"></div>
+    <div class="field field-full"><button class="btn primary" type="submit">{{ 'Save product' if edit_product else 'Add product' }}</button>{% if edit_product %} <a class="btn" href="{{ url_for('products_page') }}">Cancel</a>{% endif %}</div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="h2">Your products</div>
+  <p class="muted" style="margin:7px 0 16px;">Delete removes an unused product only. Products attached to past Income can be archived instead.</p>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+  {% for product in products %}
+    <tr><td>{{ product.name }}</td><td class="muted">{{ product.description or '—' }}</td><td>{% if product.active %}<span class="badge success">Active</span>{% else %}<span class="badge">Archived</span>{% endif %}</td><td class="actions-cell">
+      <a class="btn btn-xs" href="{{ url_for('products_page', edit=product.id) }}">Edit</a>
+      <form method="post" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ product.id }}"><input type="hidden" name="action" value="{{ 'archive' if product.active else 'restore' }}"><button class="btn btn-xs" type="submit">{{ 'Archive' if product.active else 'Restore' }}</button></form>
+      <form method="post" class="inline-form" onsubmit="return confirm('Delete this unused product? This cannot be undone.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ product.id }}"><input type="hidden" name="action" value="delete"><button class="btn danger btn-xs" type="submit">Delete</button></form>
+    </td></tr>
+  {% else %}<tr><td colspan="4" class="muted">No products yet. Add one above when you want to track a product or service.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+{% endblock %}

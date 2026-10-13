@@ -1,0 +1,65 @@
+{% extends "layout.html" %}
+{% block title %}Audit Log - Accounting{% endblock %}
+{% block content %}
+
+<div class="card">
+  <div class="h1">Audit Log</div>
+  <div class="muted">Every create, edit, void, reversal, and draft action — who changed what, and when. Nothing here can be edited or deleted.</div>
+
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+    <a class="btn btn-xs {{ 'active' if not table_filter else '' }}" href="{{ url_for('audit_log_page') }}">All tables</a>
+    {% for t in tables %}
+      <a class="btn btn-xs {{ 'active' if table_filter==t else '' }}" href="{{ url_for('audit_log_page', table=t) }}">{{ t }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="table compact-table">
+      <thead>
+        <tr>
+          <th>When (UTC)</th>
+          <th>Table</th>
+          <th>Record</th>
+          <th>Event</th>
+          <th>Actor</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in entries %}
+          <tr>
+            <td class="dim-cell">{{ entry.event_at.split("T")[0] }} {{ entry.event_at.split("T")[1][:8] if "T" in entry.event_at else "" }}</td>
+            <td>{{ entry.table_name }}</td>
+            <td>#{{ entry.record_id }}</td>
+            <td><span class="badge">{{ entry.event_type }}</span></td>
+            <td>{{ entry.actor or "unknown" }}</td>
+            <td>
+              {% if entry.payload.changes %}
+                <div class="audit-changes">
+                  {% for field, diff in entry.payload.changes.items() %}
+                    <div><strong>{{ field }}</strong>: {{ diff["from"] }} &rarr; {{ diff["to"] }}</div>
+                  {% endfor %}
+                </div>
+              {% elif entry.payload.reason %}
+                <span class="muted">{{ entry.payload.reason }}</span>
+              {% elif entry.event_type == "create" %}
+                <span class="muted">New entry created.</span>
+              {% else %}
+                <span class="muted">&mdash;</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="muted">No audit events yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="form-footer">
+  <a class="btn" href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+</div>
+{% endblock %}

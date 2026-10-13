@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block title %}Settings & tools - My Business{% endblock %}
+{% block content %}
+<style>
+  .tools-panel{max-width:900px;margin:0 auto;padding:26px}.tools-panel .h1{margin:0}.tools-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}.tools-actions .btn{min-width:150px;justify-content:center}@media(max-width:600px){.tools-panel{padding:20px}.tools-actions{display:grid;grid-template-columns:1fr}.tools-actions .btn{width:100%}}
+</style>
+<section class="card tools-panel">
+  <div class="h1">{{ t('tools.title', 'Settings & tools') }}</div>
+  <p class="muted">{{ t('tools.simple_intro', 'Business reports, partners, backups, and activity history.') }}</p>
+  <div class="tools-actions">
+    <a class="btn primary" href="{{ url_for('partner_settings') }}">{{ t('tools.manage_partners', 'Manage partners') }}</a>
+    <a class="btn" href="{{ url_for('exports_page') }}">{{ t('tools.reports', 'Reports') }}</a>
+    <a class="btn" href="{{ url_for('export_all') }}">{{ t('tools.export_csv', 'Export CSV') }}</a>
+    <a class="btn" href="{{ url_for('export_backup_db') }}">{{ t('tools.download_backup', 'Download backup') }}</a>
+    <a class="btn" href="{{ url_for('audit_log_page') }}">{{ t('tools.activity_log', 'Activity log') }}</a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+{% block title %}Money - My Business{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="h1">Money</div>
+  <div class="muted">A quick view of the money you have available. Add a wallet only if you want to track a separate balance.</div>
+  <div class="stats" style="margin-top:18px;--stat-count:1;max-width:280px;"><div class="stat"><div class="label">Money available</div><div class="value">{{ money(total_balance) }}</div></div></div>
+</div>
+
+<div class="card">
+  <div class="h2">Your wallets</div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th class="amount-col">Available</th><th></th></tr></thead><tbody>
+  {% for acc in accounts if not (acc.note or '').startswith('System mapping') %}
+    <tr><td>{{ acc.name }}</td><td class="amount-cell bold-amount">{{ money(acc.balance_usd) }}</td><td class="actions-cell"><a class="btn btn-xs" href="{{ url_for('edit_account', account_id=acc.id) }}">Edit</a></td></tr>
+  {% else %}
+    <tr><td colspan="3" class="muted">No wallets yet. You can add one below whenever you need it.</td></tr>
+  {% endfor %}
+  </tbody></table></div>
+</div>
+
+<details class="card">
+  <summary class="h2" style="cursor:pointer;">Add a wallet</summary>
+  <p class="muted">For example: Main bank, Cash, or Crypto wallet.</p>
+  <form method="post" class="form-grid" style="margin-top:12px;max-width:640px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add"><input type="hidden" name="account_type" value="wallet"><input type="hidden" name="starting_balance_date" value="{{ today }}">
+    <div class="field"><label class="muted">Wallet name</label><input name="name" placeholder="Main bank" required></div>
+    <div class="field"><label class="muted">Amount in it now (USD)</label><input name="starting_balance" type="number" step="0.01" value="0" required></div>
+    <div class="field field-full"><label class="muted">Optional note</label><input name="note" placeholder="Only if it helps you"></div>
+    <div class="field field-full"><button class="btn primary" type="submit">Add wallet</button></div>
+  </form>
+</details>
+{% endblock %}

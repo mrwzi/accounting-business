@@ -1,0 +1,555 @@
+{% extends "layout.html" %}
+{% block title %}Pricing Calculator - Accounting{% endblock %}
+
+{% block content %}
+<style>
+  .pricing-page .form-row .col-3{ grid-column: span 3; }
+  .pricing-page .stats{
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .pricing-page .stat .value{
+    font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+  .pricing-page .pricing-actions{
+    margin-top:14px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+  }
+  .pricing-page .pricing-actions .badge{
+    min-height: 40px;
+    align-items: center;
+  }
+  .pricing-page .table td:last-child{
+    overflow-wrap: anywhere;
+  }
+  .pricing-page .page-actions{
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  @media (max-width: 1100px){
+    .pricing-page .form-row .col-3{ grid-column: span 6; }
+    .pricing-page .stats{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 700px){
+    .pricing-page .card{
+      padding: 14px;
+      border-radius: 14px;
+      margin: 12px 0;
+    }
+    .pricing-page .h1{
+      font-size: 20px;
+    }
+    .pricing-page .h2{
+      font-size: 16px;
+    }
+    .pricing-page .form-row .col-6,
+    .pricing-page .form-row .col-4,
+    .pricing-page .form-row .col-3{
+      grid-column: span 12;
+    }
+    .pricing-page .pricing-actions{
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .pricing-page .page-actions{
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .pricing-page .pricing-actions .btn{
+      width: 100%;
+    }
+    .pricing-page .page-actions .btn{
+      width: 100%;
+    }
+    .pricing-page .pricing-actions .badge{
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+    }
+    .pricing-page .stats{
+      grid-template-columns: 1fr;
+    }
+    .pricing-page .table th,
+    .pricing-page .table td{
+      font-size: 13px;
+      padding: 10px;
+      white-space: normal;
+    }
+    .pricing-page input,
+    .pricing-page select,
+    .pricing-page textarea{
+      font-size: 16px;
+    }
+  }
+</style>
+
+<div class="pricing-page">
+<div class="card">
+  <div class="h1">Pricing Calculator</div>
+  <div class="muted" style="margin-top:8px;">
+    Single + shared pricing analysis with revenue, profit, break-even, and official-price positioning. Results update automatically.
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="col-12">
+    <div class="card">
+      <div class="h2">1) Inputs</div>
+      <form id="pricing-form" novalidate>
+        <div class="form-row" style="margin-top:12px;">
+          <div class="col-3 field">
+            <label for="productType">Product type</label>
+            <select id="productType" required>
+              <option value="single">Single</option>
+              <option value="shared">Shared</option>
+            </select>
+          </div>
+
+          <div class="col-3 field">
+            <label for="currency">Currency</label>
+            <select id="currency" required>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+
+          <div class="col-3 field">
+            <label for="buyPrice">Buy price</label>
+            <input id="buyPrice" type="number" step="0.01" min="0" placeholder="18.00" required>
+          </div>
+
+          <div class="col-3 field">
+            <label for="officialPrice">Official/original price</label>
+            <input id="officialPrice" type="number" step="0.01" min="0" placeholder="14.99" required>
+          </div>
+
+          <div class="col-3 field">
+            <label for="sellingPrice">Your selling price</label>
+            <input id="sellingPrice" type="number" step="0.01" min="0" placeholder="7.99" required>
+            <div class="field-help">For shared products, this is per user.</div>
+          </div>
+
+          <div class="col-3 field" id="usersWrap" hidden>
+            <label for="usersCount">Number of users (shared only)</label>
+            <input id="usersCount" type="number" step="1" min="1" value="4">
+          </div>
+        </div>
+
+        <div class="pricing-actions">
+          <button class="btn" type="reset" id="resetBtn">Reset</button>
+          <span class="badge" id="financialStatusBadge">Financially: waiting for inputs</span>
+          <span class="badge" id="marketStatusBadge">Market-wise: waiting for inputs</span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card">
+      <div class="h2">2) Math Results</div>
+      <div class="stats" style="margin-top:12px;">
+        <div class="stat"><div class="label">Revenue</div><div class="value" id="outRevenue">-</div></div>
+        <div class="stat"><div class="label">Profit</div><div class="value" id="outProfit">-</div></div>
+        <div class="stat"><div class="label">Profit per user</div><div class="value" id="outProfitPerUser">-</div></div>
+        <div class="stat"><div class="label">Break-even (= cost/user)</div><div class="value" id="outBreakEven">-</div></div>
+        <div class="stat"><div class="label">Margin</div><div class="value" id="outMargin">-</div></div>
+        <div class="stat"><div class="label">Official comparison</div><div class="value" id="outDiscount">-</div></div>
+        <div class="stat"><div class="label">Psychology label</div><div class="value" id="outPsychLabel">-</div></div>
+      </div>
+      <div class="muted" style="margin-top:6px;" id="compareNote">Official anchor and market note will appear here.</div>
+      <div class="field-help" style="margin-top:6px;">Profit here is gross: buy price only. It does not subtract payment processing fees, refunds, or your partner revenue split — actual take-home from a real sale will be lower.</div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card">
+      <div class="h2">3) Suggested Prices</div>
+      <div class="stats" style="margin-top:12px;">
+        <div class="stat"><div class="label">Minimum safe</div><div class="value" id="outMinSafe">-</div></div>
+        <div class="stat"><div class="label">Balanced</div><div class="value" id="outBalanced">-</div></div>
+        <div class="stat"><div class="label">Aggressive</div><div class="value" id="outAggressive">-</div></div>
+      </div>
+      <div class="muted" style="margin-top:12px;" id="suggestionReason">Price logic: waiting for valid inputs.</div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card">
+      <div class="h2">4) Psychology Notes</div>
+      <div class="table-wrap" style="margin-top:12px;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Check</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Under threshold</td><td id="psyThreshold">-</td></tr>
+            <tr><td>Charm pricing (.99)</td><td id="psyCharm">-</td></tr>
+            <tr><td>Official anchor</td><td id="psyAnchor">-</td></tr>
+            <tr><td>Value label</td><td id="psyValueLabel">-</td></tr>
+            <tr><td>Buyability warning</td><td id="psyBuyability">-</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const el = (id) => document.getElementById(id);
+    const form = el("pricing-form");
+
+    const productType = el("productType");
+    const usersWrap = el("usersWrap");
+    const usersCount = el("usersCount");
+    const currency = el("currency");
+    const buyPrice = el("buyPrice");
+    const officialPrice = el("officialPrice");
+    const sellingPrice = el("sellingPrice");
+    const defaultRiskBuffer = 0.15;
+
+    const charmLadder = (function () {
+      const ladder = [];
+      for (let v = 0.99; v <= 49.99 + 1e-9; v += 1) ladder.push(Math.round(v * 100) / 100);
+      for (let v = 54.99; v <= 99.99 + 1e-9; v += 5) ladder.push(Math.round(v * 100) / 100);
+      return ladder;
+    })();
+
+    function parsePositiveNumber(node, allowZero = false) {
+      const raw = String(node.value || "").trim();
+      if (!raw) return null;
+      const val = Number(raw);
+      if (!Number.isFinite(val)) return null;
+      if (allowZero ? val < 0 : val <= 0) return null;
+      return val;
+    }
+
+    function parseIntValue(node, minVal) {
+      const raw = String(node.value || "").trim();
+      if (!raw) return null;
+      const val = Number(raw);
+      if (!Number.isInteger(val) || val < minVal) return null;
+      return val;
+    }
+
+    function symbolForCurrency(code) {
+      return code === "CAD" ? "C$" : "$";
+    }
+
+    function fmtMoney(value) {
+      if (!Number.isFinite(value)) return "-";
+      return symbolForCurrency(currency.value) + value.toFixed(2);
+    }
+
+    function fmtPct(value) {
+      if (!Number.isFinite(value)) return "-";
+      return value.toFixed(2) + "%";
+    }
+
+    function setBadge(id, text, type) {
+      const badge = el(id);
+      badge.textContent = text;
+      badge.classList.remove("success", "warn", "danger");
+      if (type) badge.classList.add(type);
+    }
+
+    function charmUp(value) {
+      if (!Number.isFinite(value) || value <= 0) return 0.99;
+      const base = Math.ceil(value);
+      let priced = base - 0.01;
+      if (priced + 1e-9 < value) priced = base + 0.99;
+      return Math.max(0.99, priced);
+    }
+
+    function closestCharmAtOrAbove(value) {
+      for (const p of charmLadder) {
+        if (p + 1e-9 >= value) return p;
+      }
+      return charmUp(value);
+    }
+
+    function thresholdLabel(price) {
+      if (!Number.isFinite(price) || price <= 0) return "-";
+      if (price < 5) return "Under 5";
+      if (price < 10) return "Under 10";
+      if (price < 15) return "Under 15";
+      if (price < 20) return "Under 20";
+      return "20+";
+    }
+
+    function officialComparison(sell, official) {
+      if (!Number.isFinite(sell) || sell < 0 || !Number.isFinite(official) || official <= 0) {
+        return {
+          percent: null,
+          gap: null,
+          ratio: null,
+          summary: "No official price anchor.",
+          anchorText: "No official price anchor.",
+        };
+      }
+
+      const gap = sell - official;
+      const percent = Math.abs(gap / official) * 100;
+      const ratio = sell / official;
+
+      if (Math.abs(gap) < 0.005) {
+        return {
+          percent,
+          gap,
+          ratio,
+          summary: "Matches official price",
+          anchorText: "Matches official price. No price advantage.",
+        };
+      }
+
+      if (sell < official) {
+        return {
+          percent,
+          gap,
+          ratio,
+          summary: fmtPct(percent) + " cheaper than official",
+          anchorText: fmtPct(percent) + " cheaper than official (" + fmtMoney(Math.abs(gap)) + " below official).",
+        };
+      }
+
+      return {
+        percent,
+        gap,
+        ratio,
+        summary: fmtPct(percent) + " more expensive than official",
+        anchorText: fmtPct(percent) + " more expensive than official (" + fmtMoney(gap) + " above official anchor).",
+      };
+    }
+
+    function valueLabel(sell, official) {
+      const comparison = officialComparison(sell, official);
+      if (!Number.isFinite(sell) || sell <= 0) return "-";
+      if (!Number.isFinite(comparison.ratio)) return "No official anchor";
+      if (sell > official + 0.005) return "Over official";
+      if (Math.abs(sell - official) < 0.005) return "No price advantage";
+      if (comparison.ratio <= 0.5) return "Strong value";
+      if (comparison.ratio <= 0.8) return "Good value";
+      return "Close to official";
+    }
+
+    function financialStatus(profit) {
+      if (profit > 0.005) return { label: "Profitable", badge: "success" };
+      if (profit < -0.005) return { label: "Loss", badge: "danger" };
+      return { label: "Break-even", badge: "warn" };
+    }
+
+    function profitabilityTail(profit) {
+      if (profit > 0.005) return "and remains profitable.";
+      if (profit < -0.005) return "but this price is unprofitable.";
+      return "but this only breaks even.";
+    }
+
+    function withProfitState(baseText, profit) {
+      return baseText + ", " + profitabilityTail(profit);
+    }
+
+    function marketStatus(type, sell, official, profit) {
+      const comparison = officialComparison(sell, official);
+      if (!Number.isFinite(comparison.ratio)) {
+        return {
+          label: "Needs official anchor",
+          badge: "warn",
+          reason: "No official price anchor to judge market value.",
+        };
+      }
+
+      if (type === "shared") {
+        if (comparison.ratio >= 1) {
+          return {
+            label: "Unlikely to convert",
+            badge: "danger",
+            reason: withProfitState("Shared per-user price is at or above official, so buyability is weak", profit),
+          };
+        }
+        if (comparison.ratio >= 0.8) {
+          return {
+            label: "Risky",
+            badge: "warn",
+            reason: withProfitState("Shared per-user price is near official, so the value looks weak", profit),
+          };
+        }
+        return {
+          label: "Attractive",
+          badge: "success",
+          reason: comparison.ratio <= 0.5
+            ? withProfitState("Shared per-user price is far below official and reads as strong value", profit)
+            : withProfitState("Shared per-user price is meaningfully below official and still competitive", profit),
+        };
+      }
+
+      if (comparison.ratio > 1) {
+        return {
+          label: "Uncompetitive",
+          badge: "danger",
+          reason: withProfitState("Selling above official usually reads as poor value versus the official anchor", profit),
+        };
+      }
+      if (comparison.ratio >= 0.8) {
+        return {
+          label: "Risky",
+          badge: "warn",
+          reason: comparison.ratio >= 1
+            ? withProfitState("Matching official gives no price advantage", profit)
+            : withProfitState("Only slightly below official, so the value signal is weak", profit),
+        };
+      }
+      return {
+        label: "Attractive",
+        badge: "success",
+        reason: comparison.ratio <= 0.5
+          ? withProfitState("Meaningfully below official and likely to feel like strong value", profit)
+          : withProfitState("Below official price with a competitive value signal", profit),
+      };
+    }
+
+    function resetOutputs() {
+      setBadge("financialStatusBadge", "Financially: waiting for valid inputs", "warn");
+      setBadge("marketStatusBadge", "Market-wise: waiting for valid inputs", "warn");
+      [
+        "outRevenue",
+        "outProfit",
+        "outProfitPerUser",
+        "outBreakEven",
+        "outMargin",
+        "outDiscount",
+        "outPsychLabel",
+        "outMinSafe",
+        "outBalanced",
+        "outAggressive",
+        "psyThreshold",
+        "psyCharm",
+        "psyAnchor",
+        "psyValueLabel",
+        "psyBuyability",
+      ].forEach(function (id) {
+        el(id).textContent = "-";
+      });
+      el("compareNote").textContent = "Official anchor and market note will appear here.";
+      el("suggestionReason").textContent = "Price logic: waiting for valid inputs.";
+    }
+
+    function compute() {
+      const type = productType.value;
+      const users = type === "shared" ? parseIntValue(usersCount, 1) : 1;
+      const buy = parsePositiveNumber(buyPrice, true);
+      const official = parsePositiveNumber(officialPrice);
+      const sell = parsePositiveNumber(sellingPrice, true);
+      const riskBuffer = defaultRiskBuffer;
+
+      if (type === "shared") {
+        usersWrap.hidden = false;
+        usersCount.required = true;
+      } else {
+        usersWrap.hidden = true;
+        usersCount.required = false;
+      }
+
+      const requiredValid = buy !== null && official !== null && sell !== null && (type === "single" || users !== null);
+      if (!requiredValid) {
+        resetOutputs();
+        return;
+      }
+
+      const costPerUser = type === "shared" ? buy / users : buy;
+      const revenue = type === "shared" ? sell * users : sell;
+      const profit = revenue - buy;
+      const profitPerUser = type === "shared" ? sell - costPerUser : profit;
+      const breakEven = type === "shared" ? buy / users : buy;
+      const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+      const comparison = officialComparison(sell, official);
+      const financial = financialStatus(profit);
+      const market = marketStatus(type, sell, official, profit);
+
+      setBadge("financialStatusBadge", "Financially: " + financial.label, financial.badge);
+      setBadge("marketStatusBadge", "Market-wise: " + market.label, market.badge);
+
+      el("outRevenue").textContent = fmtMoney(revenue);
+      el("outProfit").textContent = fmtMoney(profit);
+      el("outProfitPerUser").textContent = fmtMoney(profitPerUser);
+      el("outBreakEven").textContent = fmtMoney(breakEven);
+      el("outMargin").textContent = fmtPct(margin);
+      el("outDiscount").textContent = comparison.summary;
+      el("outPsychLabel").textContent = valueLabel(sell, official);
+
+      const minSafeRaw = breakEven * (1 + riskBuffer);
+      const minSafe = charmUp(minSafeRaw);
+
+      let balancedBase = Math.max(minSafeRaw * 1.10, breakEven * 1.25);
+      if (official > 0) {
+        const softCap = official * 0.92;
+        if (softCap > minSafeRaw) balancedBase = Math.min(balancedBase, softCap);
+      }
+      const balanced = closestCharmAtOrAbove(Math.max(minSafeRaw, balancedBase));
+
+      let aggressiveBase = Math.max(balanced * 1.15, minSafeRaw * 1.35);
+      if (official > 0) {
+        const hardCap = official * 0.99;
+        if (hardCap > minSafeRaw) aggressiveBase = Math.min(aggressiveBase, hardCap);
+      }
+      const aggressive = closestCharmAtOrAbove(Math.max(balanced, aggressiveBase));
+
+      el("outMinSafe").textContent = fmtMoney(minSafe);
+      el("outBalanced").textContent = fmtMoney(balanced);
+      el("outAggressive").textContent = fmtMoney(aggressive);
+
+      if (type === "shared" && users > 1) {
+        el("compareNote").textContent =
+          "Shared value ratio: " + comparison.ratio.toFixed(2) + "x official per-user price. " + market.reason;
+      } else {
+        el("compareNote").textContent = "Official anchor note: " + comparison.anchorText + " " + market.reason;
+      }
+
+      const threshold = thresholdLabel(sell);
+      const isCharm = Math.abs((sell % 1) - 0.99) < 0.011;
+      const currentValueLabel = valueLabel(sell, official);
+      el("psyThreshold").textContent = threshold + " (" + fmtMoney(sell) + ")";
+      el("psyCharm").textContent = isCharm ? "Yes, .99 ending" : "No, consider a .99 ending";
+      el("psyAnchor").textContent = comparison.anchorText;
+      el("psyValueLabel").textContent = currentValueLabel;
+      el("psyBuyability").textContent = market.reason;
+
+      el("suggestionReason").textContent =
+        "Minimum safe uses a fixed " + Math.round(riskBuffer * 100) + "% safety buffer above break-even. " +
+        "Balanced tries to stay profitable with a .99 format while keeping a clear gap below official when possible. " +
+        "Aggressive targets higher profit while trying to stay under key thresholds.";
+    }
+
+    form.addEventListener("input", compute);
+    form.addEventListener("change", compute);
+    form.addEventListener("reset", function () {
+      setTimeout(compute, 0);
+    });
+
+    compute();
+  })();
+</script>
+
+<div class="card">
+  <div class="h2">Formula Reference</div>
+  <div class="muted" style="margin-top:8px;">
+    Single: Revenue = Sell, Profit = Sell - Buy, Break-even = Buy.
+  </div>
+  <div class="muted" style="margin-top:4px;">
+    Shared: Cost per user = Buy / Users, Revenue = Sell x Users, Profit = (Sell x Users) - Buy, Break-even per user = Buy / Users.
+  </div>
+</div>
+</div>
+{% endblock %}

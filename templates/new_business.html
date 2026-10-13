@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% block title %}New business - Accounting{% endblock %}
+{% block content %}
+<div class="card form-card" style="max-width:620px;margin:0 auto;">
+  <div class="h1">Create a business workspace</div>
+  <p class="muted">Your new workspace starts empty. Its products, records, reports, and backup remain private to its members.</p>
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post" class="form-grid" style="margin-top:18px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field field-full"><label class="muted">Business name</label><input name="name" maxlength="120" required placeholder="e.g. North Shore Studio"></div>
+    <input type="hidden" name="reporting_currency" value="USD"><div class="field"><label class="muted">Reporting currency</label><div class="readonly-value">USD</div></div>
+    <div class="field field-full"><button class="btn primary" type="submit">Create workspace</button> <a class="btn" href="{{ url_for('dashboard') }}">Cancel</a></div>
+  </form>
+</div>
+{% endblock %}

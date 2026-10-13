@@ -1,0 +1,202 @@
+{% extends "layout.html" %}
+{% block title %}{% if edit_row %}Edit Income{% else %}Add Income{% endif %}{% endblock %}
+{% block content %}
+
+<div class="card form-card" style="max-width:900px;margin:0 auto;">
+  <div class="form-header">
+    <div class="h1">{% if edit_row %}Edit Income{% else %}Add Income{% endif %}</div>
+    <div class="muted">
+      {% if edit_row %}
+        Saving writes a reversing entry for the original plus a new corrected entry — nothing is deleted.
+      {% else %}
+        Money received from customers
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if not edit_row %}<input type="hidden" name="idempotency_key" value="{{ new_idempotency_key() }}">{% endif %}
+    <div class="form-grid">
+      <div class="field">
+        <label class="muted">Date</label>
+        <input name="entry_date" type="date" value="{{ edit_row.entry_date if edit_row else '' }}">
+      </div>
+
+      <div class="field">
+        <label class="muted">Gross sale amount (what customer paid)</label>
+        <input name="amount_original" id="revenue_amount_original" type="number" step="0.01" placeholder="0.00" required value="{{ '%.2f'|format(edit_row.amount_original) if edit_row else '' }}">
+      </div>
+
+      <div class="field">
+        <label class="muted">Profit kept (after processor fee)</label>
+        <input name="profit_kept_amount" id="revenue_profit_kept_amount" type="number" step="0.01" placeholder="defaults to gross amount" value="{{ '%.2f'|format(edit_row.profit_kept_amount) if edit_row and edit_row.profit_kept_amount else '' }}">
+        <div class="field-help">Your net retained amount. The processor fee is entered separately as an expense.</div>
+      </div>
+
+      <div class="field">
+        <label class="muted">Currency</label>
+        <select name="currency" id="revenue_currency">
+          <option value="USD" {{ 'selected' if (edit_row and edit_row.currency=='USD') or (not edit_row and reporting_currency=='USD') else '' }}>USD</option>
+          {% if edit_row and edit_row.currency=='CAD' %}<option value="CAD" selected>CAD</option>{% endif %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="muted">FX to USD</label>
+        <input name="fx_to_usd" id="revenue_fx_to_usd" type="number" step="0.000001" placeholder="1.0" value="{{ edit_row.fx_to_usd if edit_row else '' }}">
+      </div>
+
+      <div class="field">
+        <label class="muted">Collected by</label>
+        <select name="collected_by" required>
+          {% for p in partners %}
+            <option value="{{ p }}" {{ 'selected' if edit_row and edit_row.collected_by==p else '' }}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="muted">Product or service</label>
+        <select name="product" id="revenue_product">
+          <option value="">No product selected</option>
+          {% for key, product in products.items() %}
+            <option value="{{ key }}" {{ 'selected' if edit_row and edit_row.product==key else '' }}>{{ product.label }}</option>
+          {% endfor %}
+        </select>
+        <div class="field-help">Choose what product or subscription the customer paid for.</div>
+      </div>
+
+      <div class="field">
+        <label class="muted">Payment method</label>
+        <select name="payment_method" id="revenue_payment_method" required>
+          {% for method in payment_methods %}
+            <option value="{{ method }}" {{ 'selected' if edit_row and edit_row.payment_method==method else '' }}>{{ method }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field field-full">
+        <label class="muted">Transaction title</label>
+        <input id="revenue_description_preview" readonly>
+        <div class="field-help">
+          Generated automatically from the payment method and amount.
+        </div>
+      </div>
+
+      <div class="field field-full" id="revenue_custom_description_field" style="display:none;">
+        <label class="muted">Custom description</label>
+        <input name="description" id="revenue_description" placeholder="Short revenue title" value="{{ edit_row.description if edit_row and edit_row.template=='other' else '' }}">
+      </div>
+
+      <div class="field field-full">
+        <label class="muted">Note</label>
+        <input name="note" placeholder="journal note (required)" required value="{{ edit_row.note if edit_row else '' }}">
+      </div>
+
+      {% if edit_row %}
+      <div class="field field-full">
+        <label class="muted">Reason for this correction (optional)</label>
+        <input name="reason" placeholder="e.g. wrong amount entered, fixing typo">
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="form-footer">
+      <a class="btn" href="{{ url_for('dashboard') }}">Cancel</a>
+      <button class="btn primary" type="submit">{% if edit_row %}Save Correction{% else %}Save Income{% endif %}</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  async function updateRevenueFxRate() {
+    const currencyEl = document.getElementById("revenue_currency");
+    const fxEl = document.getElementById("revenue_fx_to_usd");
+    if (!currencyEl || !fxEl) return;
+
+    const c = currencyEl.value;
+    if (c === "USD") {
+      fxEl.value = "1.0";
+      fxEl.readOnly = true;
+      return;
+    }
+
+    fxEl.readOnly = true;
+    fxEl.value = "...";
+    try {
+      const resp = await fetch(`/api/fx?currency=${encodeURIComponent(c)}&_=${Date.now()}`, {
+        cache: "no-store",
+      });
+      const data = await resp.json();
+      if (resp.ok && data.ok) {
+        fxEl.value = data.rate.toFixed(6);
+      } else {
+        fxEl.readOnly = false;
+        fxEl.value = "";
+        const msg = data.message || data.detail || "Could not fetch the latest daily FX reference rate.";
+        alert(`${msg} Please enter FX to USD manually.`);
+      }
+    } catch (e) {
+      fxEl.readOnly = false;
+      fxEl.value = "";
+      alert("Error reaching FX source. Please enter FX to USD manually.");
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const currencyEl = document.getElementById("revenue_currency");
+    const amountEl = document.getElementById("revenue_amount_original");
+    const profitKeptEl = document.getElementById("revenue_profit_kept_amount");
+    const paymentMethodEl = document.getElementById("revenue_payment_method");
+    const previewEl = document.getElementById("revenue_description_preview");
+    const customFieldEl = document.getElementById("revenue_custom_description_field");
+    const customDescriptionEl = document.getElementById("revenue_description");
+
+    function formatTemplateAmount(value) {
+      if (!value) return "";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return value;
+      return amount.toFixed(2).replace(/\.?0+$/, "");
+    }
+
+    function buildRevenueDescription() {
+      const template = paymentMethodEl ? paymentMethodEl.value : "Cash";
+      const amount = formatTemplateAmount(amountEl ? amountEl.value : "");
+      const profit = formatTemplateAmount(profitKeptEl ? profitKeptEl.value : "") || amount;
+      const customDescription = customDescriptionEl ? customDescriptionEl.value.trim() : "";
+
+      if (template === "Cash") return `Cash Profit - $${amount || "0"} Sale`;
+      if (template === "e-Transfer") return `e-Transfer Profit - $${amount || "0"} Sale`;
+      if (template === "Crypto") return `Crypto Profit - $${amount || "0"} Sale`;
+      if (template === "Stripe") return `Stripe Sale - $${amount || "0"} gross ($${profit || "0"} kept)`;
+      if (template === "PayPal") return `PayPal Sale - $${amount || "0"} gross ($${profit || "0"} kept)`;
+      return customDescription || "Other Revenue";
+    }
+
+    function syncRevenueDescriptionUI() {
+      if (!paymentMethodEl || !previewEl) return;
+      const isOther = paymentMethodEl.value === "Other" || paymentMethodEl.value === "Card";
+      if (customFieldEl) customFieldEl.style.display = isOther ? "" : "none";
+      if (customDescriptionEl) customDescriptionEl.required = isOther;
+      previewEl.value = buildRevenueDescription();
+    }
+
+    if (!currencyEl) return;
+    currencyEl.addEventListener("change", updateRevenueFxRate);
+    if (amountEl) amountEl.addEventListener("input", syncRevenueDescriptionUI);
+    if (profitKeptEl) profitKeptEl.addEventListener("input", syncRevenueDescriptionUI);
+    if (paymentMethodEl) paymentMethodEl.addEventListener("change", syncRevenueDescriptionUI);
+    if (customDescriptionEl) customDescriptionEl.addEventListener("input", syncRevenueDescriptionUI);
+    syncRevenueDescriptionUI();
+    {% if not edit_row %}
+    updateRevenueFxRate();
+    {% else %}
+    if (document.getElementById("revenue_fx_to_usd")) {
+      document.getElementById("revenue_fx_to_usd").readOnly = false;
+    }
+    {% endif %}
+  });
+</script>
+
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "layout.html" %}
+{% block title %}Monthly Export - Accounting{% endblock %}
+
+{% block content %}
+<div class="card form-card" style="max-width:760px;margin:0 auto;">
+  <div class="h1">Monthly Export</div>
+  <div class="muted">Filter by ledger month (entry date) and download PDF or Excel.</div>
+  <div class="muted" style="margin-top:6px;">Selected month (server preview): {{ export_month_label }} ({{ export_month }})</div>
+
+  <form id="export-form" method="get" action="{{ url_for('exports_page') }}" style="margin-top:14px;display:grid;gap:10px;max-width:440px;">
+    <input id="export-month-input" type="month" name="month" value="{{ export_month }}" required>
+    {% set can_download = export_total_tx_count > 0 %}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      <button class="btn" type="submit">Refresh Preview</button>
+      <button class="btn"
+              type="submit"
+              formaction="{{ url_for('export_monthly_pdf') }}"
+              {% if not can_download %}disabled aria-disabled="true" title="No transactions in this month."{% endif %}>
+        Download PDF
+      </button>
+      <button class="btn"
+              type="submit"
+              formaction="{{ url_for('export_monthly_xlsx') }}"
+              {% if not can_download %}disabled aria-disabled="true" title="No transactions in this month."{% endif %}>
+        Download Excel
+      </button>
+    </div>
+  </form>
+
+  <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+    {% if export_total_tx_count == 0 %}
+      <div class="muted">No transactions found for this month.</div>
+      <div class="muted" style="margin-top:4px;">Download buttons are disabled until this month has at least one transaction.</div>
+    {% else %}
+      <div class="muted">Transactions in month: {{ export_total_tx_count }} total, {{ export_posted_tx_count }} active/posted.</div>
+    {% endif %}
+    <div class="muted">
+      {{ export_month_label }} month-only preview: Revenue {{ money(export_totals.revenue) }},
+      {% if has_partner_split %}Shared Expenses{% else %}Business Expenses{% endif %} {{ money(export_totals.shared_expenses) }},
+      Net {{ money(export_totals.net_profit) }}.
+    </div>
+    {% if export_suggestion %}
+      <div class="muted" style="margin-top:4px;">Month settlement: {{ export_suggestion }}</div>
+    {% else %}
+      <div class="muted" style="margin-top:4px;">Month settlement: No settlement required (already balanced).</div>
+    {% endif %}
+  </div>
+
+  <div class="form-footer" style="margin-top:14px;">
+    <a class="btn" href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById("export-form");
+    const monthInput = document.getElementById("export-month-input");
+    if (!form || !monthInput) return;
+    monthInput.addEventListener("change", () => {
+      form.setAttribute("action", "{{ url_for('exports_page') }}");
+      form.submit();
+    });
+  });
+</script>
+{% endblock %}

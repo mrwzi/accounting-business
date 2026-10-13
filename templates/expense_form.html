@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+{% block title %}{% if edit_row %}Edit Expense{% else %}Add Expense{% endif %}{% endblock %}
+{% block content %}
+<div class="card form-card" style="max-width:900px;margin:0 auto;">
+  <div class="form-header"><div class="h1">{% if edit_row %}Edit Expense{% else %}Add Expense{% endif %}</div><div class="muted">Record money paid by the business.</div></div>
+  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% if not edit_row %}<input type="hidden" name="idempotency_key" value="{{ new_idempotency_key() }}">{% endif %}{% if not has_partner_split %}<input type="hidden" name="shared" value="on">{% endif %}<input type="hidden" name="template" value="{{ edit_row.template if edit_row and edit_row.template else 'other' }}">
+    <div class="form-grid">
+      <div class="field"><label class="muted">Date</label><input name="entry_date" type="date" value="{{ edit_row.entry_date if edit_row else '' }}" required></div>
+      <div class="field"><label class="muted">Amount</label><input name="amount_original" type="number" step="0.01" placeholder="0.00" required value="{{ '%.2f'|format(edit_row.amount_original) if edit_row else '' }}"></div>
+      <div class="field"><label class="muted">Currency</label><select name="currency" id="currency"><option value="USD" {{ 'selected' if not edit_row or edit_row.currency=='USD' else '' }}>USD</option>{% if edit_row and edit_row.currency=='CAD' %}<option value="CAD" selected>CAD</option>{% endif %}</select></div>
+      <div class="field"><label class="muted">Expense title</label><input name="description" placeholder="e.g. Website hosting" required value="{{ edit_row.description if edit_row else '' }}"></div>
+      <div class="field"><label class="muted">Vendor (optional)</label><input name="vendor" placeholder="e.g. Acme Hosting" value="{{ edit_row.vendor if edit_row and edit_row.vendor else '' }}"></div>
+      <div class="field" id="fx-field"><label class="muted">Conversion rate to USD</label><input name="fx_to_usd" id="fx_to_usd" type="number" step="0.000001" placeholder="1.0" value="{{ edit_row.fx_to_usd if edit_row else '' }}"><div class="field-help">How many USD equal 1 unit of this currency.</div></div>
+      <div class="field"><label class="muted">Paid by</label><select name="paid_by" required>{% for p in partners %}<option value="{{ p }}" {{ 'selected' if edit_row and edit_row.paid_by==p else '' }}>{{ p }}</option>{% endfor %}</select></div>
+      <div class="field"><label class="muted">Payment method</label><select name="payment_method" required>{% for method in payment_methods %}{% if method != 'Stripe' or (edit_row and edit_row.payment_method == 'Stripe') %}<option value="{{ method }}" {{ 'selected' if edit_row and edit_row.payment_method==method else '' }}>{{ 'Bank transfer / e-Transfer' if method == 'e-Transfer' else method }}</option>{% endif %}{% endfor %}</select></div>
+      {% if has_partner_split %}<div class="field"><label class="muted">Shared?</label><label class="muted toggle-inline"><input type="checkbox" id="shared_toggle" name="shared" {{ 'checked' if not edit_row or edit_row.shared else '' }} style="width:auto;"> Shared between partners</label></div><div class="field" id="for_person_field"><label class="muted">For partner</label><select name="for_person" id="for_person_select"><option value="">Choose a partner</option>{% for p in partners %}<option value="{{ p }}" {{ 'selected' if edit_row and edit_row.for_person==p else '' }}>{{ p }}</option>{% endfor %}</select></div>{% endif %}
+      <div class="field field-full"><label class="muted">Notes (optional)</label><input name="note" placeholder="Anything useful to remember" value="{{ edit_row.note if edit_row else '' }}"></div>
+      {% if edit_row %}<div class="field field-full"><label class="muted">Reason for this correction (optional)</label><input name="reason" placeholder="e.g. correcting amount"></div>{% endif %}
+    </div>
+    <div class="form-footer"><a class="btn" href="{{ url_for('dashboard') }}">Cancel</a><button class="btn primary" type="submit">{% if edit_row %}Save Expense{% else %}Save Expense{% endif %}</button></div>
+  </form>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const currency = document.getElementById("currency"), fx = document.getElementById("fx_to_usd"), fxField = document.getElementById("fx-field");
+    function syncFx() { const usd = currency.value === "USD"; fxField.style.display = usd ? "none" : ""; if (usd) { fx.value = "1.0"; fx.readOnly = true; } else { fx.readOnly = false; } }
+    const shared = document.getElementById("shared_toggle"), personal = document.getElementById("for_person_field"), person = document.getElementById("for_person_select");
+    function syncPartner() { if (!shared || !personal) return; personal.style.display = shared.checked ? "none" : ""; if (person) { person.required = !shared.checked; person.disabled = shared.checked; if (shared.checked) person.value = ""; } }
+    currency.addEventListener("change", syncFx); if (shared) shared.addEventListener("change", syncPartner); syncFx(); syncPartner();
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "layout.html" %}
+{% block title %}Partners - My Business{% endblock %}
+{% block content %}
+<div class="card form-card">
+  <div class="h1">{{ t('partners.title', 'Partners') }}</div>
+  <p class="muted">Add the people who share this business. Their names will appear when you record income and expenses.</p>
+  <div class="table-wrap" style="margin-top:18px;"><table class="table"><thead><tr><th>Partner</th><th></th></tr></thead><tbody>
+  {% for partner in partners %}<tr><td>{{ partner }}</td><td class="actions-cell">{% if partners|length > 1 %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="remove"><input type="hidden" name="partner_name" value="{{ partner }}"><button class="btn danger btn-xs" type="submit">Remove</button></form>{% else %}<span class="muted">Owner</span>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <form method="post" style="margin-top:20px;max-width:500px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add"><div class="form-row"><div class="col-12 field"><label class="muted">Partner name</label><input name="partner_name" placeholder="e.g. Sam" maxlength="80" required></div><div class="col-12"><button class="btn primary" type="submit">Add partner</button></div></div></form>
+</div>
+{% endblock %}

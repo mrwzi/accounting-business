@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+{% block title %}{% if edit_row %}Edit Payment{% else %}Record Payment{% endif %}{% endblock %}
+{% block content %}
+
+<div class="card form-card" style="max-width:700px;margin:0 auto;">
+  <div class="form-header">
+    <div class="h1">{% if edit_row %}Edit Payment{% else %}Record Payment{% endif %}</div>
+    <div class="muted">
+      {% if edit_row %}Saving writes a reversing entry plus a new corrected entry — nothing is deleted.
+      {% else %}Use when money actually moves between partners{% endif %}
+    </div>
+  </div>
+
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if not edit_row %}<input type="hidden" name="idempotency_key" value="{{ new_idempotency_key() }}">{% endif %}
+    <div class="form-grid">
+      <div class="field">
+        <label class="muted">Date</label>
+        <input name="entry_date" type="date" value="{{ edit_row.entry_date if edit_row else '' }}">
+      </div>
+
+      <div class="field">
+        <label class="muted">From</label>
+        <select name="from_person" required>
+          {% for p in partners %}
+            <option value="{{ p }}" {{ 'selected' if edit_row and edit_row.from_person==p else '' }}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="muted">To</label>
+        <select name="to_person" required>
+          {% for p in partners %}
+            <option value="{{ p }}" {{ 'selected' if edit_row and edit_row.to_person==p else '' }}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="muted">Amount (original)</label>
+        <input name="amount_original" type="number" step="0.01" placeholder="0.00" required value="{{ '%.2f'|format(edit_row.amount_original) if edit_row else '' }}">
+      </div>
+
+      <div class="field">
+        <label class="muted">Currency</label>
+        <select name="currency" id="payment_currency">
+          <option value="USD" {{ 'selected' if not edit_row or edit_row.currency=='USD' else '' }}>USD</option>
+          {% if edit_row and edit_row.currency=='CAD' %}<option value="CAD" selected>CAD</option>{% endif %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="muted">FX to USD</label>
+        <input name="fx_to_usd" id="payment_fx_to_usd" type="number" step="0.000001" placeholder="1.0" value="{{ edit_row.fx_to_usd if edit_row else '' }}">
+      </div>
+
+      <div class="field field-full">
+        <label class="muted">Note</label>
+        <input name="note" placeholder="journal note (required)" required value="{{ edit_row.note if edit_row else '' }}">
+      </div>
+
+      {% if edit_row %}
+      <div class="field field-full">
+        <label class="muted">Reason for this correction (optional)</label>
+        <input name="reason" placeholder="e.g. wrong amount entered">
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="form-footer">
+      <a class="btn" href="{{ url_for('dashboard') }}">Cancel</a>
+      <button class="btn primary" type="submit">{% if edit_row %}Save Correction{% else %}Save Payment{% endif %}</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  async function updatePaymentFxRate() {
+    const currencyEl = document.getElementById("payment_currency");
+    const fxEl = document.getElementById("payment_fx_to_usd");
+    if (!currencyEl || !fxEl) return;
+
+    const c = currencyEl.value;
+    if (c === "USD") {
+      fxEl.value = "1.0";
+      fxEl.readOnly = true;
+      return;
+    }
+
+    fxEl.readOnly = true;
+    fxEl.value = "...";
+    try {
+      const resp = await fetch(`/api/fx?currency=${encodeURIComponent(c)}`);
+      const data = await resp.json();
+      if (resp.ok && data.ok) {
+        fxEl.value = data.rate.toFixed(6);
+      } else {
+        fxEl.readOnly = false;
+        fxEl.value = "";
+        const msg = data.message || data.detail || "Could not fetch the latest daily FX reference rate.";
+        alert(`${msg} Please enter FX to USD manually.`);
+      }
+    } catch (e) {
+      fxEl.readOnly = false;
+      fxEl.value = "";
+      alert("Error reaching FX source. Please enter FX to USD manually.");
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const currencyEl = document.getElementById("payment_currency");
+    if (!currencyEl) return;
+    currencyEl.addEventListener("change", updatePaymentFxRate);
+    {% if not edit_row %}
+    updatePaymentFxRate();
+    {% endif %}
+  });
+</script>
+
+{% endblock %}

@@ -1,0 +1,205 @@
+{% extends "layout.html" %}
+{% block title %}Recurring Expenses - Accounting{% endblock %}
+{% block content %}
+
+<div class="card">
+  <div class="h1">Recurring Expenses</div>
+  <div class="muted">Each active recurring expense auto-drafts a new entry for any missing month (up to the current month). Drafts sit in the Expenses table for you to review and confirm before they count toward totals.</div>
+</div>
+
+<div class="card">
+  <div class="h2">Add a recurring expense</div>
+  <form method="post" class="form-grid" style="margin-top:10px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="add">
+
+    <div class="field">
+      <label class="muted">Label</label>
+      <input name="label" placeholder="CapCut Pro Account" required>
+    </div>
+
+    <div class="field">
+      <label class="muted">Template</label>
+      <select name="template">
+        {% for key, tpl in expense_templates.items() %}
+          <option value="{{ key }}">{{ tpl.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="muted">Vendor (optional)</label>
+      <input name="vendor" placeholder="">
+    </div>
+
+    <div class="field">
+      <label class="muted">Amount (original, last known)</label>
+      <input name="amount_original" type="number" step="0.01" placeholder="0.00" required>
+    </div>
+
+    <div class="field">
+      <label class="muted">Currency</label>
+      <select name="currency" id="recurring_currency">
+        <option value="USD">USD</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="muted">FX to USD (last known; drafts still need confirming)</label>
+      <input name="fx_to_usd" id="recurring_fx_to_usd" type="number" step="0.000001" placeholder="1.0">
+    </div>
+
+    <div class="field">
+      <label class="muted">Paid by</label>
+      <select name="paid_by" required>
+        {% for p in partners %}
+          <option value="{{ p }}">{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="muted">Payment method</label>
+      <select name="payment_method" required>
+        {% for method in payment_methods %}
+          <option value="{{ method }}">{{ method }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if has_partner_split %}
+    <div class="field">
+      <label class="muted">Shared?</label>
+      <label class="muted toggle-inline">
+        <input type="checkbox" name="shared" checked style="width:auto;">
+        Shared between partners
+      </label>
+    </div>
+    <div class="field">
+      <label class="muted">For person (if not shared)</label>
+      <select name="for_person">
+        <option value="">-</option>
+        {% for p in partners %}
+          <option value="{{ p }}">{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="field">
+      <label class="muted">Day of month</label>
+      <input name="day_of_month" type="number" min="1" max="28" value="1">
+    </div>
+
+    <div class="field">
+      <label class="muted">Start month</label>
+      <input name="start_month" type="month" value="{{ default_month }}" required>
+    </div>
+
+    <div class="field field-full">
+      <label class="muted">Note (optional)</label>
+      <input name="note" placeholder="Applied to every draft created from this recurring expense">
+    </div>
+
+    <div class="field field-full">
+      <button class="btn primary" type="submit">Add Recurring Expense</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="h2">Active &amp; inactive recurring expenses</div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Label</th>
+          <th>Amount</th>
+          <th>Paid by</th>
+          <th>Day</th>
+          <th>Start month</th>
+          <th>Missing months</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rec in recurring %}
+          <tr>
+            <td>{{ rec.label }}</td>
+            <td class="amount-cell">{{ "%.2f"|format(rec.amount_original) }} {{ rec.currency }}</td>
+            <td>{{ rec.paid_by }}</td>
+            <td>{{ rec.day_of_month }}</td>
+            <td>{{ rec.start_month }}</td>
+            <td>
+              {% if rec.missing_months %}
+                <span class="badge warn">{{ rec.missing_months|join(', ') }}</span>
+              {% else %}
+                <span class="dim-dash">&mdash;</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if rec.active %}<span class="badge success">Active</span>{% else %}<span class="badge">Inactive</span>{% endif %}
+            </td>
+            <td>
+              <form method="post" class="inline-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="recurring_id" value="{{ rec.id }}">
+                {% if rec.active %}
+                  <input type="hidden" name="action" value="deactivate">
+                  <button class="btn btn-xs" type="submit">Deactivate</button>
+                {% else %}
+                  <input type="hidden" name="action" value="activate">
+                  <button class="btn success btn-xs" type="submit">Activate</button>
+                {% endif %}
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="8" class="muted">No recurring expenses set up yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="form-footer">
+  <a class="btn" href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+</div>
+
+<script>
+  async function updateRecurringFxRate() {
+    const currencyEl = document.getElementById("recurring_currency");
+    const fxEl = document.getElementById("recurring_fx_to_usd");
+    if (!currencyEl || !fxEl) return;
+    const c = currencyEl.value;
+    if (c === "USD") {
+      fxEl.value = "1.0";
+      fxEl.readOnly = true;
+      return;
+    }
+    fxEl.readOnly = true;
+    fxEl.value = "...";
+    try {
+      const resp = await fetch(`/api/fx?currency=${encodeURIComponent(c)}&_=${Date.now()}`, { cache: "no-store" });
+      const data = await resp.json();
+      if (resp.ok && data.ok) {
+        fxEl.value = data.rate.toFixed(6);
+      } else {
+        fxEl.readOnly = false;
+        fxEl.value = "";
+      }
+    } catch (e) {
+      fxEl.readOnly = false;
+      fxEl.value = "";
+    }
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    const currencyEl = document.getElementById("recurring_currency");
+    if (currencyEl) {
+      currencyEl.addEventListener("change", updateRecurringFxRate);
+      updateRecurringFxRate();
+    }
+  });
+</script>
+{% endblock %}

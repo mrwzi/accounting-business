@@ -1,0 +1,22 @@
+# Local application data and credentials
+.env
+instance/
+*.db
+*.db-shm
+*.db-wal
+logs/
+
+# Local development environment and generated Python files
+.venv/
+__pycache__/
+*.py[cod]
+!accounting_core_recovered.pyc
+
+# Personal language packages are deliberately local-only.
+# The app works without this directory and defaults to English.
+languages/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/

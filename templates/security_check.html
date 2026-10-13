@@ -1,0 +1,213 @@
+{% extends "layout.html" %}
+{% block title %}Security Check{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:720px;margin:40px auto;">
+  <div class="h1">Security check in progress...</div>
+  <div class="muted">
+    Verifying environment for {{ session.get('user') }}. Please wait.
+  </div>
+
+  <div style="margin-top:14px;">
+    <div class="sec-progress-outer">
+      <div id="sec-progress" class="sec-progress-inner"></div>
+    </div>
+  </div>
+
+  <div id="sec-status" style="margin-top:10px;display:none;align-items:center;gap:8px;">
+    <span id="sec-status-icon" style="font-size:18px;">OK</span>
+    <span id="sec-status-text" class="muted"></span>
+  </div>
+
+  <div id="check-log" style="
+    margin-top:18px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    max-height: 360px;
+    overflow:auto;
+    padding:10px 12px;
+    border-radius: 12px;
+    border:1px solid rgba(255,255,255,.12);
+    background: radial-gradient(circle at 0 0, rgba(124,92,255,.18), transparent 55%), rgba(15,23,42,.9);
+  "></div>
+</div>
+
+<script>
+  const logEl = document.getElementById("check-log");
+  const progEl = document.getElementById("sec-progress");
+  const statusBox = document.getElementById("sec-status");
+  const statusIcon = document.getElementById("sec-status-icon");
+  const statusText = document.getElementById("sec-status-text");
+
+  const scanId = "scan-" + Math.random().toString(16).slice(2, 8);
+
+  let progressSteps = 0;
+  const TOTAL_STEPS = 22;
+
+  function nowTimestamp() {
+    const d = new Date();
+    return d.toISOString().split("T")[1].split(".")[0];
+  }
+
+  function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function advanceProgress() {
+    progressSteps++;
+    const pct = Math.min(100, (progressSteps / TOTAL_STEPS) * 100);
+    progEl.style.width = pct + "%";
+  }
+
+  async function typeLine(text, cls, delay = 15) {
+    const line = document.createElement("div");
+    if (cls) line.className = cls;
+    line.textContent = `[${nowTimestamp()}] `;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+
+    for (let i = 0; i < text.length; i++) {
+      line.textContent += text[i];
+      logEl.scrollTop = logEl.scrollHeight;
+      await wait(delay);
+    }
+    advanceProgress();
+  }
+
+  const steps = [
+    { key: "ip", label: "Rule 1/6 - Network and IP fingerprint" },
+    { key: "time", label: "Rule 2/6 - Clock synchronization and login time" },
+    { key: "session", label: "Rule 3/6 - Session integrity and age" },
+    { key: "db", label: "Rule 4/6 - Database connectivity and tables" },
+    { key: "env", label: "Rule 5/6 - Client environment" },
+    { key: "user", label: "Rule 6/6 - Admin account verification" },
+  ];
+
+  async function runSecurityCheck() {
+    await typeLine(`Assigned security scan ID: ${scanId}`, null, 16);
+    await wait(350);
+    await typeLine("Booting security pipeline...", null, 18);
+    await wait(400);
+    await typeLine("Loading security policies and rule sets...", null, 16);
+    await wait(450);
+    await typeLine("Initializing environment fingerprinting modules...", null, 16);
+    await wait(500);
+
+    const bootLines = [
+      "Compiling policy filters...",
+      "Normalizing timestamps to UTC...",
+      "Probing database health...",
+      "Inspecting active session token...",
+      "Profiling client fingerprint...",
+      "Calibrating anomaly detection thresholds..."
+    ];
+    for (const l of bootLines) {
+      await typeLine(l, null, 16);
+      await wait(380);
+    }
+
+    const respPromise = fetch("{{ url_for('api_security_check') }}", {
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" },
+      })
+      .then(async r => {
+        const contentType = r.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          const body = await r.text();
+          return {
+            ok: false,
+            error: "non_json_response",
+            detail: `HTTP ${r.status}; received ${contentType || "unknown content type"}: ${body.slice(0, 80)}`,
+          };
+        }
+        const data = await r.json();
+        if (!r.ok && !data.error) {
+          data.error = "http_error";
+          data.detail = `HTTP ${r.status}`;
+        }
+        return data;
+      })
+      .catch(err => ({ ok: false, error: "request_failed", detail: String(err) }));
+
+    await typeLine("Dispatching live security checks to backend...", null, 16);
+    await wait(500);
+
+    const data = await respPromise;
+
+    if (data.error) {
+      await typeLine("", null, 1);
+      await typeLine("ERROR: Unable to complete security checks.", "fail-line", 18);
+      await typeLine("Reason: " + data.error + (data.detail ? " (" + data.detail + ")" : ""), "fail-line", 14);
+      await typeLine("Redirecting back to login...", null, 18);
+
+      statusBox.style.display = "flex";
+      statusIcon.textContent = "!";
+      statusIcon.style.color = "var(--danger)";
+      statusText.textContent = "Security checks failed. Returning to login.";
+
+      setTimeout(() => {
+        window.location.href = "{{ url_for('login') }}";
+      }, 3000);
+      return;
+    }
+
+    await typeLine("", null, 1);
+    await typeLine("Live results received from backend. Evaluating rules...", null, 18);
+    await wait(600);
+
+    for (const step of steps) {
+      const result = data[step.key];
+      if (!result) continue;
+
+      const statusTextLocal = result.ok ? "OK" : "FAILED";
+      const cls = result.ok ? "ok-line" : "fail-line";
+
+      await typeLine(step.label + " ... " + statusTextLocal, cls, 16);
+      await typeLine("   " + result.message, cls, 12);
+      await wait(700);
+    }
+
+    await wait(1000);
+
+    if (data.ok) {
+      await typeLine("", null, 1);
+      await typeLine("All checks passed. Elevating privileges...", "ok-line", 18);
+      await typeLine("Unlocking accounting dashboard for {{ session.get('user') }}.", "ok-line", 18);
+
+      statusBox.style.display = "flex";
+      statusIcon.textContent = "OK";
+      statusIcon.style.color = "var(--success)";
+      statusText.textContent = "Access granted. Redirecting to dashboard...";
+
+      setTimeout(() => {
+        window.location.href = "{{ url_for('dashboard') }}";
+      }, 2200);
+    } else {
+      await typeLine("", null, 1);
+      await typeLine("Security policy violation detected. Access denied.", "fail-line", 18);
+      await typeLine("Current session will be terminated for safety.", "fail-line", 18);
+
+      statusBox.style.display = "flex";
+      statusIcon.textContent = "!";
+      statusIcon.style.color = "var(--danger)";
+      statusText.textContent = "Access denied. You will be logged out.";
+
+      setTimeout(() => {
+        window.location.href = "{{ url_for('logout') }}";
+      }, 3200);
+    }
+  }
+
+  runSecurityCheck();
+</script>
+
+<script>
+  const navLinks = document.querySelectorAll('.nav a');
+  navLinks.forEach(a => {
+    a.style.pointerEvents = 'none';
+    a.style.opacity = '0.5';
+  });
+</script>
+
+{% endblock %}

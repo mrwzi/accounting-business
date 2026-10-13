@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+{% block title %}Edit Account - Accounting{% endblock %}
+{% block content %}
+
+<div class="card form-card" style="max-width:700px;margin:0 auto;">
+  <div class="form-header">
+    <div class="h1">Edit Account</div>
+    <div class="muted">Update the balance, methods, or details for "{{ account.name }}".</div>
+  </div>
+
+  <form method="post" id="account-edit-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-grid">
+      <div class="field">
+        <label class="muted">Account name</label>
+        <input name="name" value="{{ account.name }}" required>
+      </div>
+
+      <div class="field field-full">
+        <label class="muted">What does this account track?</label>
+        <div class="toggle-inline" style="flex-wrap:wrap;gap:16px;margin-top:4px;">
+          <label class="muted" style="display:flex;align-items:center;gap:6px;">
+            <input type="radio" name="account_type" value="cash" class="acct-type-radio" style="width:auto;" {{ 'checked' if account.account_type == 'cash' else '' }}>
+            Cash only
+          </label>
+          <label class="muted" style="display:flex;align-items:center;gap:6px;">
+            <input type="radio" name="account_type" value="wallet" class="acct-type-radio" style="width:auto;" {{ 'checked' if account.account_type == 'wallet' else '' }}>
+            Wallet (everything else: {{ wallet_methods_label }})
+          </label>
+          <label class="muted" style="display:flex;align-items:center;gap:6px;">
+            <input type="radio" name="account_type" value="custom" class="acct-type-radio" style="width:auto;" {{ 'checked' if account.account_type == 'custom' else '' }}>
+            Custom
+          </label>
+        </div>
+        <div class="field-help acct-custom-methods" style="display:none;flex-wrap:wrap;gap:14px;margin-top:8px;">
+          {% for method in payment_methods %}
+            <label class="muted" style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" name="payment_methods" value="{{ method }}" style="width:auto;" {{ 'checked' if method in account.methods_list else '' }}>
+              {{ method }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="muted">Balance (USD)</label>
+        <input name="starting_balance" type="number" step="0.01" value="{{ '%.2f'|format(account.starting_balance_usd) }}">
+        <div class="field-help">What you'd count if you checked it as of the date below.</div>
+      </div>
+
+      <div class="field">
+        <label class="muted">As of date</label>
+        <input name="starting_balance_date" type="date" value="{{ account.starting_balance_date }}" required>
+      </div>
+
+      <div class="field field-full">
+        <label class="muted">Note (optional)</label>
+        <input name="note" value="{{ account.note or '' }}">
+      </div>
+    </div>
+
+    <div class="form-footer">
+      <a class="btn" href="{{ url_for('accounts_page') }}">Cancel</a>
+      <button class="btn primary" type="submit">Save</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById("account-edit-form");
+    if (!form) return;
+    const radios = form.querySelectorAll(".acct-type-radio");
+    const customBox = form.querySelector(".acct-custom-methods");
+    function sync() {
+      const checked = form.querySelector(".acct-type-radio:checked");
+      customBox.style.display = checked && checked.value === "custom" ? "flex" : "none";
+    }
+    radios.forEach(r => r.addEventListener("change", sync));
+    sync();
+  });
+</script>
+{% endblock %}

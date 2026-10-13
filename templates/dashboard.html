@@ -1,0 +1,474 @@
+{% extends "layout.html" %}
+{% block title %}Overview - My Business{% endblock %}
+
+{% block content %}
+{% macro status_badge(row) -%}
+  {% if row.is_draft %}
+    <span class="badge draft" title="Recurring draft — not yet counted in totals">Draft</span>
+  {% elif row.is_voided %}
+    <span class="badge warn" title="Excluded from balances and totals">Voided</span>
+  {% elif row.is_reversed %}
+    <span class="badge" title="Original entry excluded; replaced by a correction">Reversed</span>
+  {% else %}
+    <span class="badge success" title="Included in balances and totals">Active</span>
+  {% endif %}
+{%- endmacro %}
+
+{% macro delta_badge(d) -%}
+  {% if d %}
+    <span class="kpi-delta {{ d.direction }}">{% if d.direction == 'up' %}&#9650;{% elif d.direction == 'down' %}&#9660;{% else %}&#8212;{% endif %} {{ money(d.diff if d.diff >= 0 else -d.diff) }}{% if d.pct is not none %} ({{ '%.1f'|format(d.pct if d.pct >= 0 else -d.pct) }}%){% endif %}</span>
+  {% else %}
+    <span class="kpi-delta flat muted">&#8212;</span>
+  {% endif %}
+{%- endmacro %}
+
+{% macro actions_cell(row, void_endpoint, edit_endpoint, confirm_endpoint=None, discard_endpoint=None) -%}
+  {% if row.can_confirm %}
+    <form method="post" action="{{ url_for(confirm_endpoint, row_id=row.id) }}" class="inline-form" onclick="event.stopPropagation();">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn success btn-xs" type="submit">Confirm</button>
+    </form>
+    <form method="post" action="{{ url_for(discard_endpoint, row_id=row.id) }}" class="inline-form" onclick="event.stopPropagation();" onsubmit="return confirm('Discard this draft? It was never posted, so this is safe to remove.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-xs" type="submit">Discard</button>
+    </form>
+  {% elif row.can_edit %}
+    <a class="btn btn-xs" href="{{ url_for(edit_endpoint, row_id=row.id) }}" onclick="event.stopPropagation();">Edit</a>
+    <form method="post" action="{{ url_for(void_endpoint, row_id=row.id) }}" class="inline-form" onclick="event.stopPropagation();" onsubmit="return confirm('Void this entry? It stays in the audit trail but stops counting toward totals.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn danger btn-xs" type="submit">Void</button>
+    </form>
+  {% else %}
+    <span class="dim-dash">&mdash;</span>
+  {% endif %}
+{%- endmacro %}
+
+<div class="card">
+  <div class="h1">{{ t('dashboard.overview', 'Overview') }}</div>
+
+  <div class="date-filter-bar">
+    <div class="date-filter-row">
+      <div class="date-nav">
+        {% if date_range.mode == 'month' %}
+          <a class="btn btn-xs" href="{{ url_for('dashboard', range='month', month=date_range.prev_month_key, cur=display_currency) }}">&larr;</a>
+          <span class="date-filter-label">{{ date_range.label }}</span>
+          <a class="btn btn-xs" href="{{ url_for('dashboard', range='month', month=date_range.next_month_key, cur=display_currency) }}">&rarr;</a>
+        {% else %}
+          <span class="date-filter-label">{{ date_range.label }}</span>
+        {% endif %}
+      </div>
+      <div class="date-presets">
+        <a class="btn btn-xs {{ 'active' if date_range.mode=='month' else '' }}" href="{{ url_for('dashboard', range='month', cur=display_currency) }}">{{ t('dashboard.this_month', 'This Month') }}</a>
+        <a class="btn btn-xs {{ 'active' if date_range.mode=='ytd' else '' }}" href="{{ url_for('dashboard', range='ytd', cur=display_currency) }}">{{ t('dashboard.ytd', 'YTD') }}</a>
+        <a class="btn btn-xs {{ 'active' if date_range.mode=='all' else '' }}" href="{{ url_for('dashboard', range='all', cur=display_currency) }}">{{ t('dashboard.all_time', 'All Time') }}</a>
+      </div>
+      <div class="currency-toggle">
+        {% for c in display_currencies if c == 'USD' %}
+          <a class="btn btn-xs {{ 'active' if display_currency==c else '' }}" href="{{ url_for('dashboard', range=date_range.mode, month=date_range.month_key, year=date_range.year, cur=c) }}">{{ c }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    {% if live_rate_stale %}
+      <div class="muted" style="margin-top:6px;">Live FX rate unavailable right now — showing USD amounts instead until it's back.</div>
+    {% endif %}
+  </div>
+
+  <div class="stats" style="margin-top:14px;--stat-count:{{ 4 if partners|length > 1 else 3 }};">
+    <div class="stat">
+      <div class="label">{{ t('dashboard.total_income', 'Total income') }}</div>
+      <div class="value">{{ money(totals.revenue) }}</div>
+      {% if date_range.mode != 'all' %}<div class="kpi-delta-row">{{ delta_badge(deltas.revenue) }} <span class="muted small">vs {{ date_range.prev_label }}</span></div>{% endif %}
+    </div>
+    <div class="stat">
+      <div class="label">{{ t('dashboard.business_expenses', 'Business expenses') }}</div>
+      <div class="value">{{ money(totals.shared_expenses) }}</div>
+      {% if date_range.mode != 'all' %}<div class="kpi-delta-row">{{ delta_badge(deltas.shared_expenses) }} <span class="muted small">vs {{ date_range.prev_label }}</span></div>{% endif %}
+    </div>
+    <div class="stat">
+      <div class="label">{{ t('dashboard.net_profit', 'Net profit') }}</div>
+      <div class="value">{{ money(totals.net_profit) }}</div>
+      {% if date_range.mode != 'all' %}<div class="kpi-delta-row">{{ delta_badge(deltas.net_profit) }} <span class="muted small">vs {{ date_range.prev_label }}</span></div>{% endif %}
+    </div>
+    {% if partners|length > 1 %}
+      <div class="stat">
+        <div class="label">{{ t('dashboard.profit_per_person', 'Profit per person') }}</div>
+        <div class="value">{{ money(totals.each_share) }}</div>
+        {% if date_range.mode != 'all' %}<div class="kpi-delta-row">{{ delta_badge(deltas.each_share) }} <span class="muted small">vs {{ date_range.prev_label }}</span></div>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  {% if suggestion %}
+    <div style="margin-top:14px;">
+      <span class="badge warn">Settlement</span>
+      <span style="margin-left:8px;">{{ suggestion }}</span>
+    </div>
+  {% endif %}
+</div>
+
+{% if pending_drafts %}
+<div class="card" style="border-left:4px solid var(--warn, #b45309);">
+  <div class="h2">Pending recurring drafts ({{ pending_drafts|length }})</div>
+  <div class="muted">These were auto-created for missing recurring-expense months. Review and confirm (or discard) them in the Expenses table below — they don't count toward totals until confirmed.</div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="h2">{{ t('dashboard.income_vs_expenses', 'Income vs. Expenses (last 12 months, USD)') }}</div>
+  <div class="chart-wrap" id="trend-chart"></div>
+</div>
+
+<div class="grid">
+  <div class="col-6">
+    <div class="card">
+      <div class="h2">{{ t('dashboard.balances', 'Balances') }}</div>
+      <div class="muted small">All-time running balance — not affected by the date filter above.</div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Person</th>
+              <th>Balance</th>
+              <th>Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for p in partners %}
+            {% set b = balances[p] %}
+            <tr>
+              <td>{{ p }}</td>
+              <td>
+                  {% if b > 0.005 %}
+                  <span class="badge success">{{ money(b) }}</span>
+                  {% elif b < -0.005 %}
+                  <span class="badge danger">{{ money(b) }}</span>
+                {% else %}
+                  <span class="badge">{{ money(b) }}</span>
+                {% endif %}
+              </td>
+              <td class="muted">
+                {% if b > 0.005 %}Should receive
+                {% elif b < -0.005 %}Should pay
+                {% else %}Settled
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6">
+    <div class="card">
+      <div class="h2">{{ t('dashboard.quick_actions', 'Quick actions') }}</div>
+      <div class="muted">{{ t('dashboard.quick_actions_help', 'Add entries fast') }}</div>
+      <div class="quick-actions">
+        <a class="btn primary" href="{{ url_for('new_revenue') }}">{{ t('dashboard.add_income', 'Add income') }}</a>
+        <a class="btn" href="{{ url_for('new_expense') }}">{{ t('dashboard.add_expense', 'Add expense') }}</a>
+        {% if partners|length > 1 %}<a class="btn" href="{{ url_for('new_payment') }}">Record partner payment</a>{% endif %}
+        {% if is_owner() %}<a class="btn" href="{{ url_for('tools') }}">{{ t('dashboard.reports_settings', 'Reports & settings') }}</a>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- REVENUE TABLE -->
+<div class="col-12">
+  <div class="card">
+    <div class="h2">{{ t('dashboard.income', 'Income') }} <span class="muted small">({{ display_currency }})</span></div>
+    <div class="table-wrap transaction-table-wrap">
+      <table class="table compact-table transaction-table sortable-table {{ 'is-empty' if not revenue_rows else '' }}" data-table="revenue">
+        <thead>
+          <tr>
+            <th data-sort="date" data-type="text">{{ t('table.date', 'Date') }}</th>
+            <th data-sort="desc" data-type="text">{{ t('table.description', 'Description') }}</th>
+            <th data-sort="method" data-type="text">{{ t('table.payment', 'Payment') }}</th>
+            <th data-sort="gross" data-type="number" class="amount-col">{{ t('table.gross_amount', 'Gross amount') }}</th>
+            <th data-sort="amount" data-type="number" class="amount-col">{{ t('table.net_amount', 'Net amount') }}</th>
+            <th data-sort="who" data-type="text">{{ t('table.collected_by', 'Collected by') }}</th>
+            <th data-sort="status" data-type="text">{{ t('table.status', 'Status') }}</th>
+            <th>{{ t('table.actions', 'Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in revenue_rows %}
+            <tr class="compact-row {{ 'clickable-row' if r.can_edit else '' }} {{ 'draft-row' if r.is_draft else '' }}"
+                {% if r.can_edit %}data-href="{{ url_for('edit_revenue', row_id=r.id) }}"{% endif %}
+                data-date="{{ r.entry_date }}" data-desc="{{ r.description|lower }}"
+                data-method="{{ (r.payment_method or '')|lower }}" data-gross="{{ r.gross_sale_amount or r.amount_original or 0 }}"
+                data-amount="{{ r.profit_kept_amount if r.profit_kept_amount is not none else r.display_amount }}" data-who="{{ (r.collected_by or '')|lower }}"
+                data-status="{{ r.status or 'posted' }}">
+              <td data-label="Date" class="dim-cell">{{ r.entry_date }}</td>
+              <td data-label="Description">{% if r.reversal_of_id %}<span class="dim-cell" title="{{ r.note }}">&#8630; </span>{% endif %}<span class="summary-text" title="{{ r.description }}">{{ r.description }}</span></td>
+              <td data-label="Payment">{{ r.payment_method or '—' }}</td>
+              <td data-label="Gross Sale" class="amount-cell">{{ "%.2f"|format(r.gross_sale_amount or r.amount_original or 0) }} {{ r.currency }}</td>
+              <td data-label="Profit Kept" class="amount-cell bold-amount">{{ "%.2f"|format(r.profit_kept_amount if r.profit_kept_amount is not none else r.amount_original) }} {{ r.currency }}</td>
+              <td data-label="Collected by" class="dim-cell">{{ r.collected_by }}</td>
+              <td data-label="Status">{{ status_badge(r) }}</td>
+              <td data-label="Actions" class="actions-cell">
+                {{ actions_cell(r, 'void_revenue', 'edit_revenue') }}
+                {% if r.can_edit and r.payment_method in ['Stripe', 'PayPal'] %}
+                <form method="post" action="{{ url_for('refund_or_chargeback_revenue', row_id=r.id) }}" class="inline-form" onclick="event.stopPropagation();" onsubmit="return confirm('Create an immutable reversal for this processor sale?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="event" value="refund">
+                  <input name="processor_fee" type="number" min="0" step="0.01" placeholder="fee" title="Optional Stripe/PayPal refund fee" style="width:58px;display:inline-block;">
+                  <button class="btn danger btn-xs" type="submit">Refund</button>
+                </form>
+                <form method="post" action="{{ url_for('refund_or_chargeback_revenue', row_id=r.id) }}" class="inline-form" onclick="event.stopPropagation();" onsubmit="return confirm('Create an immutable chargeback reversal for this processor sale?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="event" value="chargeback">
+                  <input name="processor_fee" type="number" min="0" step="0.01" placeholder="fee" title="Optional Stripe/PayPal chargeback fee" style="width:58px;display:inline-block;">
+                  <button class="btn danger btn-xs" type="submit">Chargeback</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="8" class="muted">No revenue yet.</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if revenue_rows %}
+        <tfoot>
+          <tr class="totals-row">
+            <td colspan="4">Total ({{ display_currency }}, active only)</td>
+            <td class="amount-cell bold-amount">{{ money(totals.revenue) }}</td>
+            <td colspan="3"></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+</div>
+
+  <!-- EXPENSES TABLE -->
+<div class="col-12">
+  <div class="card">
+    <div class="h2">{{ t('dashboard.expenses', 'Expenses') }} <span class="muted small">({{ display_currency }})</span></div>
+    <div class="table-wrap transaction-table-wrap">
+      <table class="table compact-table transaction-table sortable-table {{ 'is-empty' if not expense_rows else '' }}" data-table="expenses">
+        <thead>
+          <tr>
+            <th data-sort="date" data-type="text">{{ t('table.date', 'Date') }}</th>
+            <th data-sort="desc" data-type="text">{{ t('table.description', 'Description') }}</th>
+            <th data-sort="amount" data-type="number" class="amount-col">{{ t('table.amount', 'Amount') }}</th>
+            <th data-sort="who" data-type="text">{{ t('table.paid_by', 'Paid by') }}</th>
+            <th data-sort="status" data-type="text">{{ t('table.status', 'Status') }}</th>
+            <th>{{ t('table.actions', 'Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in expense_rows %}
+            <tr class="compact-row {{ 'clickable-row' if e.can_edit else '' }} {{ 'draft-row' if e.is_draft else '' }}"
+                {% if e.can_edit %}data-href="{{ url_for('edit_expense', row_id=e.id) }}"{% endif %}
+                data-date="{{ e.entry_date }}" data-desc="{{ e.description|lower }}"
+                data-amount="{{ e.display_amount }}" data-who="{{ (e.paid_by or '')|lower }}"
+                data-status="{{ e.status or 'posted' }}">
+              <td data-label="Date" class="dim-cell">{{ e.entry_date }}</td>
+              <td data-label="Description">
+                {% if e.reversal_of_id %}<span class="dim-cell" title="{{ e.note }}">&#8630; </span>{% endif %}<span class="summary-text" title="{{ e.description }}">{{ e.description }}</span>
+                {% if e.is_draft %}<span class="muted small">(recurring draft — review amount/FX before confirming)</span>{% endif %}
+              </td>
+              <td data-label="Amount" class="amount-cell bold-amount">{{ money(e.display_amount) }}{% if e.display_is_estimated %}<span class="est-tag" title="Converted using today's live FX rate">~</span>{% endif %}</td>
+              <td data-label="Paid by" class="dim-cell">{{ e.paid_by }}</td>
+              <td data-label="Status">{{ status_badge(e) }}</td>
+              <td data-label="Actions" class="actions-cell">{{ actions_cell(e, 'void_expense', 'edit_expense', 'confirm_expense_draft', 'discard_expense_draft') }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" class="muted">No expenses yet.</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if expense_rows %}
+        <tfoot>
+          <tr class="totals-row">
+            <td colspan="2">Total ({{ display_currency }}, active &amp; shared only)</td>
+            <td class="amount-cell bold-amount">{{ money(totals.shared_expenses) }}</td>
+            <td colspan="3"></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+</div>
+
+  {% if partners|length > 1 %}
+  <!-- DEBTS TABLE -->
+<div class="col-12">
+  <div class="card">
+    <div class="h2">Debts (Adjustments) <span class="muted small">({{ display_currency }})</span></div>
+    <div class="table-wrap transaction-table-wrap">
+      <table class="table compact-table transaction-table sortable-table" data-table="adjustments">
+        <thead>
+          <tr>
+            <th data-sort="date" data-type="text">Date</th>
+            <th data-sort="desc" data-type="text">Description</th>
+            <th data-sort="amount" data-type="number" class="amount-col">Amount</th>
+            <th data-sort="from" data-type="text">From</th>
+            <th data-sort="to" data-type="text">To</th>
+            <th data-sort="status" data-type="text">Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in adjustment_rows %}
+            <tr class="compact-row {{ 'clickable-row' if a.can_edit else '' }}"
+                {% if a.can_edit %}data-href="{{ url_for('edit_adjustment', row_id=a.id) }}"{% endif %}
+                data-date="{{ a.entry_date }}" data-desc="debt adjustment" data-amount="{{ a.display_amount }}"
+                data-from="{{ (a.from_person or '')|lower }}" data-to="{{ (a.to_person or '')|lower }}" data-status="{{ a.status or 'posted' }}">
+              <td data-label="Date" class="dim-cell">{{ a.entry_date }}</td>
+              <td data-label="Description">Debt adjustment</td>
+              <td data-label="Amount" class="amount-cell bold-amount">{{ money(a.display_amount) }}{% if a.display_is_estimated %}<span class="est-tag" title="Converted using today's live FX rate">~</span>{% endif %}</td>
+              <td data-label="From">{{ a.from_person }}</td>
+              <td data-label="To">{{ a.to_person }}</td>
+              <td data-label="Status">{{ status_badge(a) }}</td>
+              <td data-label="Actions" class="actions-cell">{{ actions_cell(a, 'void_adjustment', 'edit_adjustment') }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" class="muted">No debts yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+  <!-- PAYMENTS TABLE -->
+<div class="col-12">
+  <div class="card">
+    <div class="h2">Payments <span class="muted small">({{ display_currency }})</span></div>
+    <div class="table-wrap transaction-table-wrap">
+      <table class="table compact-table transaction-table sortable-table" data-table="payments">
+        <thead>
+          <tr>
+            <th data-sort="date" data-type="text">Date</th>
+            <th data-sort="desc" data-type="text">Description</th>
+            <th data-sort="amount" data-type="number" class="amount-col">Amount</th>
+            <th data-sort="from" data-type="text">From</th>
+            <th data-sort="to" data-type="text">To</th>
+            <th data-sort="status" data-type="text">Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payment_rows %}
+            <tr class="compact-row {{ 'clickable-row' if p.can_edit else '' }}"
+                {% if p.can_edit %}data-href="{{ url_for('edit_payment', row_id=p.id) }}"{% endif %}
+                data-date="{{ p.entry_date }}" data-desc="settlement payment" data-amount="{{ p.display_amount }}"
+                data-from="{{ (p.from_person or '')|lower }}" data-to="{{ (p.to_person or '')|lower }}" data-status="{{ p.status or 'posted' }}">
+              <td data-label="Date" class="dim-cell">{{ p.entry_date }}</td>
+              <td data-label="Description">Settlement payment</td>
+              <td data-label="Amount" class="amount-cell bold-amount">{{ money(p.display_amount) }}{% if p.display_is_estimated %}<span class="est-tag" title="Converted using today's live FX rate">~</span>{% endif %}</td>
+              <td data-label="From">{{ p.from_person }}</td>
+              <td data-label="To">{{ p.to_person }}</td>
+              <td data-label="Status">{{ status_badge(p) }}</td>
+              <td data-label="Actions" class="actions-cell">{{ actions_cell(p, 'void_payment', 'edit_payment') }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" class="muted">No payments yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+  {% endif %}
+
+</div>
+
+<script id="chart-data" type="application/json">{{ chart_series|tojson }}</script>
+<script>
+(function () {
+  // ---- Row click-to-edit (ignore clicks on buttons/links/forms inside the row) ----
+  document.addEventListener("click", (ev) => {
+    const row = ev.target.closest(".clickable-row");
+    if (!row) return;
+    if (ev.target.closest("a, button, form, input")) return;
+    const href = row.getAttribute("data-href");
+    if (href) window.location.href = href;
+  });
+
+  // ---- Sortable tables ----
+  document.querySelectorAll(".sortable-table").forEach((table) => {
+    const headers = table.querySelectorAll("thead th[data-sort]");
+    let currentSort = null;
+    let currentDir = 1;
+    headers.forEach((th) => {
+      th.classList.add("sortable-col");
+      th.addEventListener("click", () => {
+        const key = th.getAttribute("data-sort");
+        const type = th.getAttribute("data-type") || "text";
+        const tbody = table.querySelector("tbody");
+        const rows = Array.from(tbody.querySelectorAll("tr")).filter((r) => r.hasAttribute("data-date") || r.hasAttribute("data-amount") || r.dataset[key] !== undefined);
+        if (rows.length < 2) return;
+
+        currentDir = (currentSort === key) ? -currentDir : 1;
+        currentSort = key;
+        headers.forEach((h) => h.classList.remove("sort-asc", "sort-desc"));
+        th.classList.add(currentDir === 1 ? "sort-asc" : "sort-desc");
+
+        rows.sort((a, b) => {
+          let av = a.dataset[key] || "";
+          let bv = b.dataset[key] || "";
+          if (type === "number") {
+            av = parseFloat(av) || 0;
+            bv = parseFloat(bv) || 0;
+            return (av - bv) * currentDir;
+          }
+          return av.localeCompare(bv) * currentDir;
+        });
+        rows.forEach((r) => tbody.appendChild(r));
+      });
+    });
+  });
+
+  // ---- Trend chart (dependency-free inline SVG) ----
+  const chartData = JSON.parse(document.getElementById("chart-data").textContent || "[]");
+  const chartEl = document.getElementById("trend-chart");
+  const languageStrings = window.accountingLanguageStrings || {};
+  const languageTokens = window.accountingLanguageTokens || {};
+  const chartText = (text) => languageStrings[text] || Object.entries(languageTokens)
+    .sort(([left], [right]) => right.length - left.length)
+    .reduce((result, [from, to]) => result.replaceAll(from, to), text);
+  if (chartEl && chartData.length) {
+    const w = Math.max(chartEl.clientWidth || 700, 320);
+    const h = 220;
+    const padL = 46, padR = 12, padT = 14, padB = 26;
+    const maxVal = Math.max(1, ...chartData.map((d) => Math.max(d.revenue, d.expenses)));
+    const stepX = (w - padL - padR) / Math.max(1, chartData.length - 1);
+    const yFor = (v) => padT + (h - padT - padB) * (1 - v / maxVal);
+    const xFor = (i) => padL + i * stepX;
+
+    function pathFor(field) {
+      return chartData.map((d, i) => `${i === 0 ? "M" : "L"}${xFor(i).toFixed(1)},${yFor(d[field]).toFixed(1)}`).join(" ");
+    }
+
+    const gridLines = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+      const y = padT + (h - padT - padB) * (1 - f);
+      return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${w - padR}" y2="${y.toFixed(1)}" class="chart-grid"/>` +
+             `<text x="${padL - 6}" y="${(y + 3).toFixed(1)}" class="chart-axis-label" text-anchor="end">${Math.round(maxVal * f).toLocaleString()}</text>`;
+    }).join("");
+
+    const xLabels = chartData.map((d, i) => {
+      if (chartData.length > 8 && i % 2 !== 0) return "";
+      return `<text x="${xFor(i).toFixed(1)}" y="${h - 6}" class="chart-axis-label" text-anchor="middle">${chartText(d.label.split(" ")[0])}</text>`;
+    }).join("");
+
+    chartEl.innerHTML = `
+      <svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" aria-label="${chartText('Revenue vs. Expenses (last 12 months, USD)')}">
+        ${gridLines}
+        <path d="${pathFor("expenses")}" class="chart-line chart-line-expenses" fill="none"/>
+        <path d="${pathFor("revenue")}" class="chart-line chart-line-revenue" fill="none"/>
+        ${xLabels}
+      </svg>
+      <div class="chart-legend">
+        <span class="chart-legend-item"><span class="chart-swatch chart-swatch-revenue"></span>${chartText('Revenue')}</span>
+        <span class="chart-legend-item"><span class="chart-swatch chart-swatch-expenses"></span>${chartText('Expenses')}</span>
+      </div>`;
+  } else if (chartEl) {
+    chartEl.innerHTML = `<div class="muted">${chartText('Not enough data yet for a trend chart.')}</div>`;
+  }
+})();
+</script>
+{% endblock %}
