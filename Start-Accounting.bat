@@ -10,10 +10,11 @@ echo.
 echo Accounting needs Python 3.14, but it is not installed on this computer.
 echo Python is required because the accounting engine was built for version 3.14.
 echo.
-choice /C YN /N /M "Install Python 3.14 automatically now? [Y/N]: "
-if errorlevel 2 goto install_declined
+set "INSTALL_PYTHON="
+set /p "INSTALL_PYTHON=Install Python 3.14 automatically now? [Y/N]: "
+if /I not "%INSTALL_PYTHON%"=="Y" goto install_declined
 
-where winget >nul 2>nul
+winget --version >nul 2>nul
 if errorlevel 1 goto manual_install
 
 echo.
@@ -53,11 +54,10 @@ exit /b
 
 :find_python
 set "PYTHON_EXE="
-where py >nul 2>nul
-if not errorlevel 1 for /f "usebackq delims=" %%P in (`py -3.14 -c "import sys; print(sys.executable)" 2^>nul`) do set "PYTHON_EXE=%%P"
+if "%ACCOUNTING_FORCE_NO_PYTHON%"=="1" exit /b
+for /f "usebackq delims=" %%P in (`py -3.14 -c "import sys; print(sys.executable)" 2^>nul`) do set "PYTHON_EXE=%%P"
 if defined PYTHON_EXE exit /b
-where python >nul 2>nul
-if not errorlevel 1 for /f "usebackq delims=" %%P in (`python -c "import sys; print(sys.executable if sys.version_info[:2] == (3, 14) else '')" 2^>nul`) do set "PYTHON_EXE=%%P"
+for /f "usebackq delims=" %%P in (`python -c "import sys; print(sys.executable if sys.version_info[:2] == (3, 14) else '')" 2^>nul`) do set "PYTHON_EXE=%%P"
 exit /b
 
 :install_declined
