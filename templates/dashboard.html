@@ -422,6 +422,7 @@
   // ---- Trend chart (dependency-free inline SVG) ----
   const chartData = JSON.parse(document.getElementById("chart-data").textContent || "[]");
   const chartEl = document.getElementById("trend-chart");
+  const reportingCurrency = {{ reporting_currency|tojson }};
   const languageStrings = window.accountingLanguageStrings || {};
   const languageTokens = window.accountingLanguageTokens || {};
   const chartText = (text) => languageStrings[text] || Object.entries(languageTokens)
@@ -452,7 +453,7 @@
     }).join("");
 
     chartEl.innerHTML = `
-      <svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" aria-label="${chartText('Revenue vs. Expenses (last 12 months, USD)')}">
+      <svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" aria-label="${chartText(`Revenue vs. Expenses (last 12 months, ${reportingCurrency})`)}">
         ${gridLines}
         <path d="${pathFor("expenses")}" class="chart-line chart-line-expenses" fill="none"/>
         <path d="${pathFor("revenue")}" class="chart-line chart-line-revenue" fill="none"/>
