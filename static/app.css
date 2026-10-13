@@ -654,6 +654,19 @@ select option:hover{
 
 .action-menu-body form{
   margin: 0;
+  display: block;
+  width: 100%;
+}
+
+.action-menu-section{
+  padding: 3px 0 6px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  margin-bottom: 4px;
+}
+
+.action-menu-heading{
+  padding: 2px 4px 5px;
+  text-align: start;
 }
 
 .action-menu-body label{
@@ -661,6 +674,10 @@ select option:hover{
   gap: 5px;
   padding: 5px 4px;
   text-align: start;
+}
+
+.action-menu-language{
+  padding-bottom: 3px;
 }
 
 .action-menu-body select{

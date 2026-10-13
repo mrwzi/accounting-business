@@ -21,10 +21,12 @@
           <summary class="badge" style="cursor:pointer;">{{ session.get("user") }} &#9662;</summary>
           <div class="action-menu-body">
             {% if available_businesses|length > 1 %}
-              <div class="muted small" style="padding:4px 0 6px;">{{ t('menu.switch_workspace', 'Switch workspace') }}</div>
-              {% for business in available_businesses %}{% if not g.business or business.id != g.business.id %}<form method="post" action="{{ url_for('select_business', business_id=business.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-xs" type="submit">{{ business.name }}</button></form>{% endif %}{% endfor %}
+              <div class="action-menu-section">
+                <div class="action-menu-heading muted small">{{ t('menu.switch_workspace', 'Switch workspace') }}</div>
+                {% for business in available_businesses %}{% if not g.business or business.id != g.business.id %}<form method="post" action="{{ url_for('select_business', business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-xs" type="submit">{{ business.name }}</button></form>{% endif %}{% endfor %}
+              </div>
             {% endif %}
-            {% if language_packs %}<form method="post" action="{{ url_for('choose_language') }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="muted small">{{ t('menu.language', 'Language') }}<select name="language" onchange="this.form.submit()">{% for language in language_packs %}<option value="{{ language.code }}" {{ 'selected' if language.code == current_language.code else '' }}>{{ language.name }}</option>{% endfor %}</select></label></form>{% endif %}
+            {% if language_packs %}<form method="post" action="{{ url_for('choose_language') }}" class="action-menu-language"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="muted small">{{ t('menu.language', 'Language') }}<select name="language" onchange="this.form.submit()">{% for language in language_packs %}<option value="{{ language.code }}" {{ 'selected' if language.code == current_language.code else '' }}>{{ language.name }}</option>{% endfor %}</select></label></form>{% endif %}
             <a class="btn btn-xs" href="{{ url_for('new_business') }}">{{ t('menu.new_business', 'New business') }}</a>
             <a class="btn btn-xs" href="{{ url_for('change_password') }}">{{ t('menu.password', 'Password') }}</a>
             <a class="btn btn-xs" href="{{ url_for('logout') }}">{{ t('menu.logout', 'Log out') }}</a>
