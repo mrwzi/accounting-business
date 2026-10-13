@@ -4,9 +4,14 @@ A clean, self-hosted accounting workspace starter. It ships with no customer rec
 
 ## Start locally (Windows)
 
-The easiest option is to double-click **`Start-Accounting.bat`**. It creates a
-local virtual environment, installs the required packages, starts the app, and
-opens `http://127.0.0.1:5003` in your browser.
+The easiest option is to double-click **`Start-Accounting.bat`**. It checks the
+computer first. If Python 3.14 is missing, it asks permission before installing
+Python through Windows Package Manager. It never installs anything without the
+user choosing **Yes**. It then creates a private local environment, installs the
+required packages, starts the app, and opens `http://127.0.0.1:5003`.
+
+If automatic installation is unavailable or fails, the launcher opens the
+official Python download page and explains what to do next.
 
 This is a local web application, not a static HTML page: the local server is
 needed for login security, permissions, exports, and the SQLite database.
