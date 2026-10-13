@@ -110,7 +110,7 @@
 {% endif %}
 
 <div class="card">
-  <div class="h2">{{ t('dashboard.income_vs_expenses', 'Income vs. Expenses (last 12 months, USD)')|replace('USD', reporting_currency) }}</div>
+  <div class="h2">{% if reporting_currency == 'TOMAN' %}{{ t('dashboard.income_vs_expenses_toman', 'Income vs. Expenses (last 12 months, Toman)') }}{% else %}{{ t('dashboard.income_vs_expenses', 'Income vs. Expenses (last 12 months, USD)') }}{% endif %}</div>
   <div class="chart-wrap" id="trend-chart"></div>
 </div>
 

@@ -26,7 +26,7 @@
                 {% for business in available_businesses %}{% if not g.business or business.id != g.business.id %}<form method="post" action="{{ url_for('select_business', business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-xs" type="submit">{{ business.name }}</button></form>{% endif %}{% endfor %}
               </div>
             {% endif %}
-            {% if language_packs %}<form method="post" action="{{ url_for('choose_language') }}" class="action-menu-language"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="use_toman" value="0"><label class="muted small">{{ t('menu.language', 'Language') }}<select name="language" data-current-language="{{ current_language.code }}" data-suggest-toman="{{ '1' if is_owner() and reporting_currency != 'TOMAN' else '0' }}" onchange="chooseAccountingLanguage(this)">{% for language in language_packs %}<option value="{{ language.code }}" {{ 'selected' if language.code == current_language.code else '' }}>{{ language.name }}</option>{% endfor %}</select></label></form>{% endif %}
+            {% if language_packs %}<form method="post" action="{{ url_for('choose_language') }}" class="action-menu-language"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="muted small">{{ t('menu.language', 'Language') }}<select name="language" onchange="this.form.submit()">{% for language in language_packs %}<option value="{{ language.code }}" {{ 'selected' if language.code == current_language.code else '' }}>{{ language.name }}</option>{% endfor %}</select></label></form>{% endif %}
             <a class="btn btn-xs" href="{{ url_for('new_business') }}">{{ t('menu.new_business', 'New business') }}</a>
             <a class="btn btn-xs" href="{{ url_for('change_password') }}">{{ t('menu.password', 'Password') }}</a>
             <a class="btn btn-xs" href="{{ url_for('logout') }}">{{ t('menu.logout', 'Log out') }}</a>
@@ -39,14 +39,5 @@
     {% block content %}{% endblock %}
     <div class="footer">{{ t('footer.private_workspace', 'Your private business workspace') }}</div>
   </div>
-  <script>
-    function chooseAccountingLanguage(select) {
-      const form = select.form;
-      if (select.value === "fa" && select.dataset.suggestToman === "1") {
-        form.elements.use_toman.value = window.confirm("Use Toman as this workspace's native currency? Existing numbers are not converted to USD.") ? "1" : "0";
-      }
-      form.submit();
-    }
-  </script>
 </body>
 </html>

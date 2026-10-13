@@ -361,6 +361,18 @@ def _set_business_native_currency(currency):
     g.business["native_currency"] = currency
 
 
+def _apply_persian_currency_default():
+    """Initialize an unset Persian owner's workspace as native Toman."""
+    business = getattr(g, "business", None)
+    if (
+        business
+        and business.get("role") == "owner"
+        and session.get("language") == "fa"
+        and not business.get("native_currency")
+    ):
+        _set_business_native_currency("TOMAN")
+
+
 def _ensure_owner_membership(username):
     _init_business_registry()
     conn = _master_db()
@@ -552,7 +564,7 @@ def choose_language():
     if code not in _language_packs():
         abort(400)
     session["language"] = code
-    if code == "fa" and request.form.get("use_toman") == "1" and _is_owner():
+    if code == "fa" and _is_owner() and not g.business.get("native_currency"):
         _set_business_native_currency("TOMAN")
         flash("Workspace currency changed to Toman. No USD conversion was applied.", "success")
     return _core.redirect(_core.url_for("dashboard"))
@@ -645,6 +657,7 @@ def change_password():
 # The migration is additive: existing data stays in the legacy ledger.
 _init_business_registry()
 _core.app.before_request(_select_business_ledger)
+_core.app.before_request(_apply_persian_currency_default)
 _core.app.teardown_request(_clear_business_ledger)
 _seed_legacy_products()
 _configure_core_options()
